@@ -2,6 +2,8 @@ import { useEffect, useMemo } from 'react'
 import type { ComponentType, ReactNode } from 'react'
 import { EditorContent, useEditor } from '@tiptap/react'
 import type { Editor, JSONContent } from '@tiptap/core'
+import { NodeViewWrapper, ReactNodeViewRenderer, NodeViewContent } from '@tiptap/react'
+import type { NodeViewProps } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import UnderlineExtension from '@tiptap/extension-underline'
 import TextStyle from '@tiptap/extension-text-style'
@@ -50,6 +52,7 @@ type RichDocumentEditorProps = {
   content: RichTextContent
   editable: boolean
   onChange: (content: RichTextContent, text: string) => void
+  variant?: 'default' | 'paper'
 }
 
 type ToolButtonProps = {
@@ -108,7 +111,97 @@ function insertImage(editor: Editor) {
   editor.chain().focus().setImage({ src: url.trim() }).run()
 }
 
-export function RichDocumentEditor({ content, editable, onChange }: RichDocumentEditorProps) {
+function ResizableImageView(props: NodeViewProps) {
+  const { node, selected, updateAttributes, editor } = props
+
+  const src = typeof node.attrs.src === 'string' ? node.attrs.src : ''
+  const width = typeof node.attrs.width === 'number' ? node.attrs.width : undefined
+  const align = typeof node.attrs.align === 'string' ? node.attrs.align : 'center'
+
+  const justify = align === 'left' ? 'flex-start' : align === 'right' ? 'flex-end' : 'center'
+
+  function startResize(e: React.MouseEvent<HTMLButtonElement>, direction: 'left' | 'right') {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!editor.isEditable) return
+
+    const startX = e.clientX
+    const startWidth = typeof width === 'number' ? width : 480
+
+    function onMove(ev: MouseEvent) {
+      const delta = ev.clientX - startX
+      const next = Math.max(120, Math.min(1100, Math.round(startWidth + (direction === 'right' ? delta : -delta))))
+      updateAttributes({ width: next })
+    }
+
+    function onUp() {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
+
+  return (
+    <NodeViewWrapper className="daftar-image-node" data-selected={selected ? '1' : '0'}>
+      <div className="daftar-image-frame" style={{ justifyContent: justify }}>
+        <div className="daftar-image-box" style={{ width: width ? `${width}px` : undefined }}>
+          <img src={src} alt={typeof node.attrs.alt === 'string' ? node.attrs.alt : ''} draggable={false} />
+          {editor.isEditable && selected ? (
+            <>
+              <button
+                type="button"
+                aria-label="Resize image"
+                className="daftar-image-handle left"
+                onMouseDown={(e) => startResize(e, 'left')}
+              />
+              <button
+                type="button"
+                aria-label="Resize image"
+                className="daftar-image-handle right"
+                onMouseDown={(e) => startResize(e, 'right')}
+              />
+            </>
+          ) : null}
+        </div>
+      </div>
+      <NodeViewContent className="hidden" />
+    </NodeViewWrapper>
+  )
+}
+
+const ResizableImage = Image.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      width: {
+        default: null,
+        parseHTML: (element) => {
+          const raw = element.getAttribute('data-width')
+          const value = raw ? Number(raw) : NaN
+          return Number.isFinite(value) ? value : null
+        },
+        renderHTML: (attrs) => (attrs.width ? { 'data-width': String(attrs.width) } : {}),
+      },
+      align: {
+        default: 'center',
+        parseHTML: (element) => element.getAttribute('data-align') || 'center',
+        renderHTML: (attrs) => (attrs.align ? { 'data-align': String(attrs.align) } : {}),
+      },
+    }
+  },
+  addNodeView() {
+    return ReactNodeViewRenderer(ResizableImageView)
+  },
+})
+
+export function RichDocumentEditor({ content, editable, onChange, variant = 'default' }: RichDocumentEditorProps) {
+  const isPaperVariant = variant === 'paper'
+  const editorSurfaceClass = isPaperVariant
+    ? 'daftar-editor daftar-editor-paper min-h-[1024px] px-14 py-12 focus:outline-none'
+    : 'daftar-editor min-h-[520px] px-8 py-7 focus:outline-none'
+
   const extensions = useMemo(
     () => [
       StarterKit.configure({
@@ -124,7 +217,7 @@ export function RichDocumentEditor({ content, editable, onChange }: RichDocument
         autolink: true,
         linkOnPaste: true,
       }),
-      Image.configure({ inline: false, allowBase64: true }),
+      ResizableImage.configure({ inline: false, allowBase64: true }),
       Table.configure({ resizable: true }),
       TableRow,
       TableHeader,
@@ -144,7 +237,7 @@ export function RichDocumentEditor({ content, editable, onChange }: RichDocument
     editable,
     editorProps: {
       attributes: {
-        class: 'daftar-editor min-h-[520px] px-8 py-7 focus:outline-none',
+        class: editorSurfaceClass,
       },
     },
     onUpdate: ({ editor: nextEditor }) => {
@@ -166,9 +259,15 @@ export function RichDocumentEditor({ content, editable, onChange }: RichDocument
   }
 
   return (
-    <div className="overflow-hidden rounded-lg border border-border-subtle bg-bg-card">
+    <div
+      className={
+        isPaperVariant
+          ? 'overflow-hidden rounded-sm bg-white'
+          : 'overflow-hidden rounded-lg border border-border-subtle bg-bg-card'
+      }
+    >
       {editable ? (
-        <div className="sticky top-14 z-10 flex flex-wrap items-center gap-2 border-b border-border-subtle bg-bg-secondary/95 px-3 py-2 backdrop-blur">
+        <div className="flex flex-wrap items-center gap-2 border-b border-border-subtle bg-bg-secondary/95 px-3 py-2 backdrop-blur">
           <ToolbarGroup>
             <ToolButton
               title="Bold"
@@ -290,6 +389,27 @@ export function RichDocumentEditor({ content, editable, onChange }: RichDocument
           <ToolbarGroup>
             <ToolButton title="Link" icon={Link2} active={editor.isActive('link')} onClick={() => setLink(editor)} />
             <ToolButton title="Image" icon={ImagePlus} onClick={() => insertImage(editor)} />
+            <ToolButton
+              title="Image align left"
+              icon={AlignLeft}
+              disabled={!editor.isActive('image')}
+              active={editor.isActive('image', { align: 'left' })}
+              onClick={() => editor.chain().focus().updateAttributes('image', { align: 'left' }).run()}
+            />
+            <ToolButton
+              title="Image align center"
+              icon={AlignCenter}
+              disabled={!editor.isActive('image')}
+              active={editor.isActive('image', { align: 'center' })}
+              onClick={() => editor.chain().focus().updateAttributes('image', { align: 'center' }).run()}
+            />
+            <ToolButton
+              title="Image align right"
+              icon={AlignRight}
+              disabled={!editor.isActive('image')}
+              active={editor.isActive('image', { align: 'right' })}
+              onClick={() => editor.chain().focus().updateAttributes('image', { align: 'right' }).run()}
+            />
             <ToolButton
               title="Table"
               icon={Table2}

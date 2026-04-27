@@ -11,8 +11,8 @@
     --border: 42 42 58;
     --border-subtle: 30 30 42;
     --text-primary: 240 240 255;
-    --text-secondary: 136 136 170;
-    --text-muted: 85 85 112;
+    --text-secondary: 240 240 255;
+    --text-muted: 240 240 255;
     --accent-primary: 99 102 241;
     --accent-hover: 79 70 229;
     --accent-secondary: 139 92 246;
@@ -30,8 +30,8 @@
     --border: 226 226 236;
     --border-subtle: 235 235 245;
     --text-primary: 10 10 26;
-    --text-secondary: 85 85 112;
-    --text-muted: 153 153 176;
+    --text-secondary: 10 10 26;
+    --text-muted: 10 10 26;
   }
 
   html {
@@ -180,8 +180,45 @@
     border-radius: 0.5rem;
     display: block;
     height: auto;
-    margin: 1rem auto;
+    margin: 1.1rem 0;
     max-width: 100%;
+  }
+
+  .daftar-image-frame {
+    display: flex;
+    width: 100%;
+  }
+
+  .daftar-image-box {
+    position: relative;
+    max-width: 100%;
+  }
+
+  .daftar-image-node[data-selected='1'] .daftar-image-box {
+    outline: 2px solid rgb(var(--accent-primary) / 0.8);
+    outline-offset: 2px;
+    border-radius: 0.5rem;
+  }
+
+  .daftar-image-handle {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    height: 22px;
+    width: 10px;
+    border-radius: 9999px;
+    border: 1px solid rgb(var(--border) / 1);
+    background: rgb(var(--bg-card) / 1);
+    cursor: col-resize;
+    opacity: 0.95;
+  }
+
+  .daftar-image-handle.left {
+    left: -10px;
+  }
+
+  .daftar-image-handle.right {
+    right: -10px;
   }
 
   .daftar-editor table {
@@ -229,6 +266,52 @@
   .resize-cursor {
     cursor: ew-resize;
     cursor: col-resize;
+  }
+
+  .daftar-editor-paper {
+    color: #111827;
+    line-height: 1.75;
+    font-size: 15px;
+  }
+
+  .daftar-editor-paper a {
+    color: #1d4ed8;
+  }
+
+  .daftar-editor-paper blockquote {
+    border-left-color: #6366f1;
+    color: #334155;
+    background: #eef2ff;
+  }
+
+  .daftar-editor-paper code {
+    border-color: #e5e7eb;
+    background: #f3f4f6;
+    color: #111827;
+  }
+
+  .daftar-editor-paper pre {
+    border-color: #e5e7eb;
+    background: #f9fafb;
+    color: #111827;
+  }
+
+  .daftar-editor-paper hr {
+    border-top-color: #e5e7eb;
+  }
+
+  .daftar-editor-paper img {
+    border-color: #e5e7eb;
+  }
+
+  .daftar-editor-paper td,
+  .daftar-editor-paper th {
+    border-color: #e5e7eb;
+  }
+
+  .daftar-editor-paper th {
+    background: #f8fafc;
+    color: #111827;
   }
 
   @media print {

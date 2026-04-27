@@ -6,6 +6,7 @@ import toast from 'react-hot-toast'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft,
+  BookOpen,
   CheckCircle2,
   Clock3,
   Copy,
@@ -56,6 +57,15 @@ function slugify(value: string) {
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/(^-|-$)+/g, '') || 'document'
   )
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
 }
 
 function getAttr(node: RichTextContent, key: string) {
@@ -120,6 +130,147 @@ function nodeMarkdown(node: RichTextContent, index = 0): string {
   return children.map(nodeMarkdown).join('\n\n')
 }
 
+function applyHtmlMarks(text: string, marks: RichTextContent['marks']) {
+  if (!marks?.length) return escapeHtml(text)
+
+  return marks.reduce((current, mark) => {
+    if (mark.type === 'bold') return `<strong>${current}</strong>`
+    if (mark.type === 'italic') return `<em>${current}</em>`
+    if (mark.type === 'strike') return `<s>${current}</s>`
+    if (mark.type === 'code') return `<code>${current}</code>`
+    if (mark.type === 'underline') return `<u>${current}</u>`
+    if (mark.type === 'link') {
+      const href = typeof mark.attrs?.href === 'string' ? escapeHtml(mark.attrs.href) : '#'
+      return `<a href="${href}" target="_blank" rel="noopener noreferrer">${current}</a>`
+    }
+    return current
+  }, escapeHtml(text))
+}
+
+function inlineHtml(node: RichTextContent): string {
+  if (node.type === 'text') return applyHtmlMarks(node.text ?? '', node.marks)
+  if (node.type === 'hardBreak') return '<br/>'
+  if (!node.content?.length) return ''
+  return node.content.map(inlineHtml).join('')
+}
+
+function plainInlineText(node: RichTextContent): string {
+  if (node.type === 'text') return node.text ?? ''
+  if (node.type === 'hardBreak') return '\n'
+  if (!node.content?.length) return ''
+  return node.content.map(plainInlineText).join('')
+}
+
+function listItemHtml(node: RichTextContent): string {
+  const children = node.content ?? []
+  return children
+    .map((child) => {
+      if (child.type === 'paragraph') return inlineHtml(child)
+      return blockHtml(child)
+    })
+    .join('')
+}
+
+function tableRowHtml(node: RichTextContent): string {
+  const cells = node.content ?? []
+  const isHeader = cells.some((cell) => cell.type === 'tableHeader')
+  return `<tr>${cells
+    .map((cell) => {
+      const tag = cell.type === 'tableHeader' || isHeader ? 'th' : 'td'
+      return `<${tag}>${inlineHtml(cell) || '&nbsp;'}</${tag}>`
+    })
+    .join('')}</tr>`
+}
+
+function blockHtml(node: RichTextContent): string {
+  const children = node.content ?? []
+
+  if (node.type === 'paragraph') return `<p>${inlineHtml(node) || '&nbsp;'}</p>`
+  if (node.type === 'heading') {
+    const level = Math.min(3, Math.max(1, Number(node.attrs?.level ?? 2)))
+    return `<h${level}>${inlineHtml(node)}</h${level}>`
+  }
+  if (node.type === 'blockquote') return `<blockquote>${children.map(blockHtml).join('')}</blockquote>`
+  if (node.type === 'codeBlock') return `<pre><code>${escapeHtml(plainInlineText(node))}</code></pre>`
+  if (node.type === 'horizontalRule') return '<hr/>'
+  if (node.type === 'image') {
+    const src = typeof node.attrs?.src === 'string' ? escapeHtml(node.attrs.src) : ''
+    if (!src) return ''
+    const alt = typeof node.attrs?.alt === 'string' ? escapeHtml(node.attrs.alt) : ''
+    return `<figure><img src="${src}" alt="${alt}"/></figure>`
+  }
+  if (node.type === 'bulletList') return `<ul>${children.map((item) => `<li>${listItemHtml(item)}</li>`).join('')}</ul>`
+  if (node.type === 'orderedList') return `<ol>${children.map((item) => `<li>${listItemHtml(item)}</li>`).join('')}</ol>`
+  if (node.type === 'taskList') {
+    return `<ul class="task-list">${children
+      .map(
+        (item) =>
+          `<li><label><input type="checkbox" ${item.attrs?.checked ? 'checked' : ''} disabled /></label><span>${listItemHtml(item)}</span></li>`,
+      )
+      .join('')}</ul>`
+  }
+  if (node.type === 'table') return `<table><tbody>${children.map(tableRowHtml).join('')}</tbody></table>`
+
+  return children.map(blockHtml).join('')
+}
+
+function toPrintableHtml(title: string, content: RichTextContent, updatedAt: string) {
+  const safeTitle = escapeHtml(title.trim() || 'Untitled')
+  const renderedContent = (content.content ?? []).map(blockHtml).join('')
+
+  return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>${safeTitle}</title>
+  <style>
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #f3f4f6; font-family: Inter, Arial, sans-serif; color: #111827; }
+    .sheet {
+      width: 210mm;
+      min-height: 297mm;
+      margin: 16px auto;
+      padding: 18mm 16mm;
+      background: #fff;
+      box-shadow: 0 20px 50px rgba(15, 23, 42, .18);
+    }
+    h1 { margin: 0 0 6px; font-size: 28px; line-height: 1.25; }
+    .meta { color: #6b7280; font-size: 12px; margin-bottom: 18px; }
+    article { font-size: 14px; line-height: 1.7; }
+    h2 { margin: 20px 0 10px; font-size: 22px; }
+    h3 { margin: 18px 0 8px; font-size: 18px; }
+    p { margin: 10px 0; }
+    ul, ol { margin: 10px 0; padding-left: 24px; }
+    li { margin: 5px 0; }
+    blockquote { margin: 14px 0; padding: 10px 14px; border-left: 3px solid #6366f1; background: #eef2ff; }
+    code { background: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 4px; padding: 2px 4px; font-family: 'JetBrains Mono', Consolas, monospace; font-size: .92em; }
+    pre { margin: 14px 0; padding: 12px; border: 1px solid #e5e7eb; border-radius: 6px; background: #f9fafb; overflow-x: auto; }
+    pre code { border: 0; background: transparent; padding: 0; }
+    img { max-width: 100%; border-radius: 8px; border: 1px solid #e5e7eb; }
+    table { width: 100%; border-collapse: collapse; margin: 14px 0; }
+    th, td { border: 1px solid #e5e7eb; padding: 8px 10px; text-align: left; vertical-align: top; }
+    th { background: #f9fafb; }
+    .task-list { list-style: none; padding-left: 0; }
+    .task-list li { display: flex; gap: 8px; align-items: flex-start; }
+    .task-list input { margin-top: 4px; }
+    @page { size: A4; margin: 12mm; }
+    @media print {
+      body { background: #fff; }
+      .sheet { box-shadow: none; margin: 0 auto; }
+    }
+  </style>
+</head>
+<body>
+  <div class="sheet">
+    <h1>${safeTitle}</h1>
+    <div class="meta">Updated ${escapeHtml(formatDate(updatedAt))}</div>
+    <article>${renderedContent}</article>
+  </div>
+</body>
+</html>`
+}
+
 function toMarkdown(title: string, content: RichTextContent) {
   const body = (content.content ?? []).map((node, index) => nodeMarkdown(node, index)).filter(Boolean).join('\n\n')
   return `# ${title.trim() || 'Untitled'}\n\n${body}`.trim()
@@ -146,6 +297,7 @@ function DocumentWorkspace({ doc }: { doc: Document }) {
   const queryClient = useQueryClient()
 
   const [mode, setMode] = useState<Mode>('view')
+  const [isReaderOpen, setIsReaderOpen] = useState(false)
   const [title, setTitle] = useState(() => doc.title || 'Untitled')
   const [content, setContent] = useState<RichTextContent>(() => normalizeDocumentContent(doc.content, doc.content_text))
   const [contentText, setContentText] = useState(() => doc.content_text || '')
@@ -244,6 +396,15 @@ function DocumentWorkspace({ doc }: { doc: Document }) {
   }, [saveNow])
 
   useEffect(() => {
+    if (!isReaderOpen) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsReaderOpen(false)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [isReaderOpen])
+
+  useEffect(() => {
     if (mode !== 'edit') return
     const id = window.setInterval(() => {
       if (isDirty && !saveMutation.isPending) saveMutation.mutate()
@@ -283,14 +444,40 @@ function DocumentWorkspace({ doc }: { doc: Document }) {
     }
   }
 
-  function downloadMarkdown() {
-    const blob = new Blob([toMarkdown(title, content)], { type: 'text/markdown;charset=utf-8' })
-    const url = URL.createObjectURL(blob)
-    const anchor = window.document.createElement('a')
-    anchor.href = url
-    anchor.download = `${slugify(title)}.md`
-    anchor.click()
-    URL.revokeObjectURL(url)
+  function downloadPdf() {
+    const iframe = window.document.createElement('iframe')
+    iframe.setAttribute('aria-hidden', 'true')
+    iframe.style.position = 'fixed'
+    iframe.style.width = '0'
+    iframe.style.height = '0'
+    iframe.style.border = '0'
+    iframe.style.right = '0'
+    iframe.style.bottom = '0'
+
+    const cleanup = () => {
+      window.setTimeout(() => {
+        if (iframe.parentNode) iframe.parentNode.removeChild(iframe)
+      }, 450)
+    }
+
+    iframe.onload = () => {
+      const printWindow = iframe.contentWindow
+      if (!printWindow) {
+        cleanup()
+        toast.error('Could not prepare PDF print')
+        return
+      }
+
+      printWindow.document.title = `${slugify(title)}.pdf`
+      printWindow.onafterprint = cleanup
+      printWindow.focus()
+      printWindow.print()
+      window.setTimeout(cleanup, 15000)
+    }
+
+    iframe.srcdoc = toPrintableHtml(title, content, doc.updated_at)
+    window.document.body.appendChild(iframe)
+    toast.success('PDF print dialog opened')
   }
 
   return (
@@ -372,6 +559,17 @@ function DocumentWorkspace({ doc }: { doc: Document }) {
             </button>
           </div>
 
+          <button
+            type="button"
+            title="Reader"
+            aria-label="Open Reader"
+            onClick={() => setIsReaderOpen(true)}
+            className="inline-flex h-10 items-center gap-2 rounded-lg border border-border-subtle bg-bg-card px-3 text-sm text-text-secondary transition hover:bg-bg-hover hover:text-text-primary"
+          >
+            <BookOpen className="h-4 w-4" />
+            Reader
+          </button>
+
           {mode === 'edit' ? (
             <select
               value={categoryId}
@@ -432,9 +630,9 @@ function DocumentWorkspace({ doc }: { doc: Document }) {
 
           <button
             type="button"
-            title="Download Markdown"
-            aria-label="Download Markdown"
-            onClick={downloadMarkdown}
+            title="Download PDF"
+            aria-label="Download PDF"
+            onClick={downloadPdf}
             className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-border-subtle bg-bg-card text-text-secondary transition hover:bg-bg-hover hover:text-text-primary"
           >
             <Download className="h-4 w-4" />
@@ -465,6 +663,33 @@ function DocumentWorkspace({ doc }: { doc: Document }) {
           </button>
         </div>
       </div>
+
+      {isReaderOpen ? (
+        <div className="fixed inset-0 z-[70] bg-black/60 p-3 backdrop-blur-sm md:p-6">
+          <div className="mx-auto flex h-full max-w-[1240px] flex-col">
+            <div className="mb-3 flex items-center justify-between">
+              <div className="text-xs font-medium uppercase tracking-[0.12em] text-text-muted">Reader Mode</div>
+              <button
+                type="button"
+                onClick={() => setIsReaderOpen(false)}
+                className="inline-flex h-9 items-center rounded-md border border-border-subtle bg-bg-card px-3 text-sm text-text-secondary transition hover:bg-bg-hover hover:text-text-primary"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-auto rounded-xl border border-border-subtle bg-bg-secondary/60 p-3 md:p-8">
+              <div className="mx-auto w-full max-w-[860px]">
+                <div className="rounded-sm border border-slate-200 bg-white px-14 py-10 shadow-[0_22px_60px_rgba(15,23,42,0.25)]">
+                  <h2 className="text-3xl font-semibold text-slate-900">{title.trim() || 'Untitled'}</h2>
+                  <div className="mt-2 text-sm text-slate-500">Updated {formatDate(doc.updated_at)}</div>
+                </div>
+                <RichDocumentEditor content={content} editable={false} onChange={onEditorChange} variant="paper" />
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <RichDocumentEditor content={content} editable={mode === 'edit'} onChange={onEditorChange} />
     </div>

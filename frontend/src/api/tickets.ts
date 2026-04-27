@@ -1,4 +1,5 @@
 import { http } from './http'
+import type { AxiosResponse } from 'axios'
 import type { ApiEnvelope } from '../types/auth'
 import type { CursorPage } from '../types/pagination'
 import type { Ticket, TicketNote, TimeEntry } from '../types/tickets'
@@ -38,6 +39,7 @@ export async function deleteTicketById(ticketId: string) {
 }
 
 export type UpdateTicketInput = Partial<{
+  ticket: string
   title: string
   status: string
   priority: string
@@ -130,8 +132,7 @@ export async function createTimeEntry(input: CreateTimeEntryInput) {
 }
 
 export type CreateTicketInput = {
-  ticket_number: string
-  title: string
+  ticket: string
   client_id: string
   status?: string
   priority?: string
@@ -141,5 +142,43 @@ export type CreateTicketInput = {
 
 export async function createTicket(input: CreateTicketInput) {
   const res = await http.post<ApiEnvelope<Ticket>>('/tickets/', input)
+  return res.data
+}
+
+export type TicketExportParams = {
+  client_id: string
+  range: 'day' | 'week' | 'month' | 'custom'
+  date?: string
+  start_date?: string
+  end_date?: string
+  file_type: 'csv' | 'pdf'
+}
+
+export async function exportTicketsFile(params: TicketExportParams): Promise<AxiosResponse<Blob>> {
+  return http.get('/tickets/tools/export/', {
+    params,
+    responseType: 'blob',
+  })
+}
+
+export type TicketImportResult = {
+  client_id: string
+  created: number
+  updated: number
+  failed: number
+  required_fields: string[]
+  errors: string[]
+}
+
+export async function importTicketsFile(clientId: string, file: File) {
+  const form = new FormData()
+  form.append('client_id', clientId)
+  form.append('file', file)
+
+  const res = await http.post<ApiEnvelope<TicketImportResult>>('/tickets/tools/import/', form, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  })
   return res.data
 }

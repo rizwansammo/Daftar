@@ -19,6 +19,7 @@ export type Client = {
   created_at: string
   ticket_count?: number
   doc_count?: number
+  boilerplate_count?: number
   completed_ticket_count?: number
   pending_ticket_count?: number
   handed_over_ticket_count?: number
@@ -33,6 +34,7 @@ export type Tag = {
 
 export type Ticket = {
   id: string
+  ticket: string
   ticket_number: string
   title: string
   client: Client

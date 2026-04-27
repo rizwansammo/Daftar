@@ -32,6 +32,7 @@ INSTALLED_APPS = [
     "apps.schedule",
     "apps.reminders",
     "apps.docs",
+    "apps.boilerplates",
 ]
 
 MIDDLEWARE = [

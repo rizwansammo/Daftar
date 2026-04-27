@@ -7,8 +7,8 @@ from .models import CustomUser
 @admin.register(CustomUser)
 class CustomUserAdmin(UserAdmin):
     ordering = ("email",)
-    list_display = ("email", "full_name", "role", "is_active", "last_login")
-    search_fields = ("email", "full_name")
+    list_display = ("email", "display_name", "full_name", "role", "is_active", "last_login")
+    search_fields = ("email", "display_name", "full_name")
 
     fieldsets = (
         (None, {"fields": ("email", "password")}),
@@ -16,6 +16,7 @@ class CustomUserAdmin(UserAdmin):
             "Profile",
             {
                 "fields": (
+                    "display_name",
                     "full_name",
                     "avatar",
                     "role",
@@ -47,7 +48,7 @@ class CustomUserAdmin(UserAdmin):
                 "classes": ("wide",),
                 "fields": (
                     "email",
-                    "username",
+                    "display_name",
                     "full_name",
                     "role",
                     "password1",

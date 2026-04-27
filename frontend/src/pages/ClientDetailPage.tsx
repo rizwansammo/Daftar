@@ -6,8 +6,8 @@ import { useParams } from 'react-router-dom'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 
 import { getClient } from '../api/clients'
+import { listUsers } from '../api/users'
 import {
-  addTicketNote,
   addTicketNoteById,
   createTicket,
   createTimeEntry,
@@ -17,6 +17,7 @@ import {
   updateTicketNote,
   updateTicket,
 } from '../api/tickets'
+import { useAuthStore } from '../store/auth'
 
 function formatHours(seconds?: number) {
   const s = seconds ?? 0
@@ -41,6 +42,30 @@ function ticketLevel(priority: string) {
   if (priority === 'HIGH' || priority === 'URGENT') return 'L3'
   if (priority === 'NORMAL') return 'L2'
   return 'L1'
+}
+
+function ticketLabel(ticket: { ticket?: string; ticket_number?: string; title?: string }) {
+  const merged = (ticket.ticket || '').trim()
+  if (merged) return merged
+  const number = (ticket.ticket_number || '').trim()
+  const title = (ticket.title || '').trim()
+  if (number && title) return `${number} - ${title}`
+  return number || title
+}
+
+function getAssignedAgentLabel(ticket: { assigned_agent: { display_name?: string; full_name?: string; email?: string } | null }) {
+  const agent = ticket.assigned_agent
+  if (!agent) return 'Unassigned'
+  return agent.display_name || agent.full_name || agent.email || 'Unassigned'
+}
+
+function getAssignedAgentFirstName(ticket: { assigned_agent: { display_name?: string; full_name?: string; email?: string } | null }) {
+  const label = getAssignedAgentLabel(ticket)
+  if (label === 'Unassigned') return label
+  const firstPart = label.split(/\s+/).filter(Boolean)[0]
+  if (firstPart) return firstPart
+  const emailPrefix = label.split('@')[0]
+  return emailPrefix || label
 }
 
 function parseDurationToSeconds(raw: string) {
@@ -89,6 +114,7 @@ function statusTone(status: string) {
 export function ClientDetailPage() {
   const params = useParams()
   const queryClient = useQueryClient()
+  const me = useAuthStore((s) => s.me)
 
   const clientId = params.clientId
   const [search, setSearch] = useState('')
@@ -100,13 +126,14 @@ export function ClientDetailPage() {
   const [summary, setSummary] = useState('')
   const [priority, setPriority] = useState<'LOW' | 'NORMAL' | 'HIGH'>('LOW')
   const [status, setStatus] = useState<'COMPLETED' | 'PENDING' | 'ESCALATED'>('COMPLETED')
+  const [selectedAgentId, setSelectedAgentId] = useState('')
   const [workDate, setWorkDate] = useState('')
   const [hoursWorked, setHoursWorked] = useState('')
   const [selected, setSelected] = useState<Record<string, boolean>>({})
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [editTicketId, setEditTicketId] = useState<string | null>(null)
   const [editTicketNumber, setEditTicketNumber] = useState('')
-  const [editTitle, setEditTitle] = useState('')
+  const [editTicket, setEditTicket] = useState('')
   const [editStatus, setEditStatus] = useState<'COMPLETED' | 'PENDING' | 'ESCALATED'>('PENDING')
   const [editPriority, setEditPriority] = useState<'LOW' | 'NORMAL' | 'HIGH'>('LOW')
   const [editSteps, setEditSteps] = useState('')
@@ -129,6 +156,14 @@ export function ClientDetailPage() {
     queryFn: async () => {
       const res = await getClient(clientId as string)
       return res.data
+    },
+  })
+
+  const agentsQuery = useQuery({
+    queryKey: ['users', 'ticket-agent-picker'],
+    queryFn: async () => {
+      const res = await listUsers()
+      return res.data.results
     },
   })
 
@@ -211,7 +246,7 @@ export function ClientDetailPage() {
   const selectedTicketNumbers = useMemo(() => {
     const all = ticketsQuery.data?.results ?? []
     const selectedIds = new Set(Object.entries(selected).filter(([, v]) => v).map(([k]) => k))
-    return all.filter((t) => selectedIds.has(t.id)).map((t) => t.ticket_number)
+    return all.filter((t) => selectedIds.has(t.id)).map((t) => ticketLabel(t))
   }, [selected, ticketsQuery.data?.results])
 
   const selectedTicketIds = useMemo(() => {
@@ -227,10 +262,10 @@ export function ClientDetailPage() {
   const editMutation = useMutation({
     mutationFn: async () => {
       if (!editTicketNumber) throw new Error('Missing ticket')
-      const title = editTitle.trim()
-      if (!title) throw new Error('Title required')
+      const nextTicket = editTicket.trim()
+      if (!nextTicket) throw new Error('Ticket required')
       const res = await updateTicket(editTicketNumber, {
-        title,
+        ticket: nextTicket,
         status: editStatus,
         priority: editPriority,
       })
@@ -239,8 +274,8 @@ export function ClientDetailPage() {
       if (steps) {
         if (editNoteId) {
           await updateTicketNote(editNoteId, steps)
-        } else {
-          await addTicketNote(editTicketNumber, steps)
+        } else if (editTicketId) {
+          await addTicketNoteById(editTicketId, steps)
         }
       }
 
@@ -284,6 +319,7 @@ export function ClientDetailPage() {
       setIsEditOpen(false)
       setEditTicketId(null)
       setEditTicketNumber('')
+      setEditTicket('')
       setEditSteps('')
       setEditNoteId(null)
       setEditWorkDate('')
@@ -306,18 +342,14 @@ export function ClientDetailPage() {
       if (!clientId) throw new Error('Missing client id')
       const raw = ticket.trim()
       if (!raw) throw new Error('Missing fields')
-
-      const parts = raw.split(' - ')
-      const ticket_number = (parts[0] || '').trim()
-      const title = (parts.slice(1).join(' - ') || '').trim()
-      if (!ticket_number || !title) throw new Error('Use format: TICKET_NUMBER - Title')
+      if (!raw.includes(' - ')) throw new Error('Use format: TICKET_NUMBER - Subject')
 
       const created = await createTicket({
-        ticket_number,
-        title,
+        ticket: raw,
         client_id: clientId,
         priority,
         status,
+        assigned_agent_id: selectedAgentId || me?.id || null,
       })
 
       const createdTicket = created.data
@@ -377,6 +409,7 @@ export function ClientDetailPage() {
       setSummary('')
       setPriority('LOW')
       setStatus('PENDING')
+      setSelectedAgentId('')
       setWorkDate('')
       setHoursWorked('')
       queryClient.invalidateQueries({ queryKey: ['tickets'] })
@@ -444,7 +477,7 @@ export function ClientDetailPage() {
               type="button"
               onClick={() => deleteMutation.mutate(selectedTicketIds)}
               disabled={deleteMutation.isPending}
-              className="inline-flex h-10 items-center justify-center rounded-xl border border-red-500/30 bg-red-500/10 px-4 text-sm text-red-200 hover:bg-red-500/15 disabled:opacity-60"
+              className="inline-flex h-10 items-center justify-center rounded-xl bg-red-600 px-4 text-sm font-medium text-white hover:bg-red-500 disabled:opacity-60"
             >
               {deleteMutation.isPending
                 ? 'Deleting…'
@@ -463,7 +496,7 @@ export function ClientDetailPage() {
                 if (!t) return
                 setEditTicketId(t.id)
                 setEditTicketNumber(t.ticket_number)
-                setEditTitle(t.title)
+                setEditTicket(ticketLabel(t))
                 setEditStatus(t.status as 'COMPLETED' | 'PENDING' | 'ESCALATED')
                 setEditPriority(t.priority as 'LOW' | 'NORMAL' | 'HIGH')
                 setEditWorkDate(new Date().toISOString().slice(0, 10))
@@ -479,6 +512,7 @@ export function ClientDetailPage() {
           <button
             type="button"
             onClick={() => {
+              setSelectedAgentId(me?.id ?? '')
               setIsNewOpen(true)
             }}
             className="inline-flex h-10 items-center justify-center rounded-xl bg-accent-primary px-4 text-sm font-medium text-white hover:bg-accent-hover"
@@ -492,7 +526,7 @@ export function ClientDetailPage() {
               onChange={(e) => setSearch(e.target.value)}
               type="text"
               className="mt-2 h-10 w-full rounded-xl border border-border-subtle bg-bg-secondary px-3 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-primary focus:ring-accent-primary/30"
-              placeholder="Search by ticket # or title"
+              placeholder="Search by ticket"
             />
           </div>
         </div>
@@ -507,13 +541,13 @@ export function ClientDetailPage() {
             <style>{`@keyframes daftar-pop { from { opacity: 0; transform: translateY(8px) scale(0.98);} to { opacity: 1; transform: translateY(0) scale(1);} }`}</style>
             <div className="flex items-start justify-between gap-4">
               <div>
-                <div className="text-sm font-semibold">{detailTicket.ticket_number}</div>
-                <div className="mt-1 text-sm text-text-secondary">{detailTicket.title}</div>
+                <div className="text-sm font-semibold">{ticketLabel(detailTicket)}</div>
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   <Badge tone={statusTone(detailTicket.status)}>{detailTicket.status}</Badge>
                   <Badge>{`Level ${ticketLevel(detailTicket.priority)}`}</Badge>
                   <Badge>{`Created ${formatCreated(detailTicket.created_at)}`}</Badge>
                   <Badge>{`Worked ${formatWorked(detailTicket.total_time_seconds)}`}</Badge>
+                  <Badge>{`Agent ${getAssignedAgentFirstName(detailTicket)}`}</Badge>
                 </div>
               </div>
               <button
@@ -559,7 +593,10 @@ export function ClientDetailPage() {
               </div>
               <button
                 type="button"
-                onClick={() => setIsNewOpen(false)}
+                onClick={() => {
+                  setIsNewOpen(false)
+                  setSelectedAgentId('')
+                }}
                 className="text-sm text-text-secondary hover:text-text-primary"
               >
                 Close
@@ -579,14 +616,31 @@ export function ClientDetailPage() {
                   <option value="ESCALATED">Handed over</option>
                 </select>
               </div>
+              <div className="space-y-2 md:col-span-1">
+                <label className="text-xs font-medium text-text-secondary">Agent</label>
+                <select
+                  value={selectedAgentId}
+                  onChange={(e) => setSelectedAgentId(e.target.value)}
+                  className="h-10 w-full rounded-xl border border-border-subtle bg-bg-secondary px-3 text-sm text-text-primary focus:border-accent-primary focus:ring-accent-primary/30"
+                >
+                  <option value={me?.id ?? ''}>{me?.display_name || me?.full_name || me?.email || 'Me'}</option>
+                  {(agentsQuery.data ?? [])
+                    .filter((agent) => agent.id !== me?.id)
+                    .map((agent) => (
+                      <option key={agent.id} value={agent.id}>
+                        {agent.display_name || agent.full_name || agent.email}
+                      </option>
+                    ))}
+                </select>
+              </div>
               <div className="space-y-2 md:col-span-2">
-                <label className="text-xs font-medium text-text-secondary">Ticket</label>
+                <label className="text-xs font-medium text-text-secondary">Ticket Number</label>
                 <input
                   value={ticket}
                   onChange={(e) => setTicket(e.target.value)}
                   type="text"
                   className="h-10 w-full rounded-xl border border-border-subtle bg-bg-secondary px-3 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-primary focus:ring-accent-primary/30"
-                  placeholder="TICKET_NUMBER - Title"
+                  placeholder="Ticket Number"
                 />
               </div>
 
@@ -640,7 +694,10 @@ export function ClientDetailPage() {
             <div className="mt-5 flex items-center justify-end gap-2">
               <button
                 type="button"
-                onClick={() => setIsNewOpen(false)}
+                onClick={() => {
+                  setIsNewOpen(false)
+                  setSelectedAgentId('')
+                }}
                 className="inline-flex h-10 items-center justify-center rounded-xl border border-border-subtle bg-bg-secondary px-4 text-sm text-text-primary hover:bg-bg-hover"
               >
                 Cancel
@@ -667,7 +724,7 @@ export function ClientDetailPage() {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div className="text-sm font-semibold">Edit ticket</div>
-                <div className="mt-1 text-sm text-text-secondary">{editTicketNumber}</div>
+                <div className="mt-1 text-sm text-text-secondary">{editTicket}</div>
               </div>
               <button
                 type="button"
@@ -680,10 +737,10 @@ export function ClientDetailPage() {
 
             <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="space-y-2 md:col-span-2">
-                <label className="text-xs font-medium text-text-secondary">Title</label>
+                <label className="text-xs font-medium text-text-secondary">Ticket</label>
                 <input
-                  value={editTitle}
-                  onChange={(e) => setEditTitle(e.target.value)}
+                  value={editTicket}
+                  onChange={(e) => setEditTicket(e.target.value)}
                   type="text"
                   className="h-10 w-full rounded-xl border border-border-subtle bg-bg-secondary px-3 text-sm text-text-primary focus:border-accent-primary focus:ring-accent-primary/30"
                 />
@@ -826,13 +883,13 @@ export function ClientDetailPage() {
                   })
                 }}
                 type="checkbox"
-                className="h-4 w-4 rounded border border-black/70 bg-transparent accent-black dark:border-white/70 dark:accent-white"
+                className="h-4 w-4 rounded border border-[rgb(var(--text-primary))]/70 bg-transparent accent-[rgb(var(--accent-primary))]"
                 aria-label="Select all"
               />
             </div>
             <div className="col-span-1">Date</div>
-            <div className="col-span-2">Ticket</div>
-            <div className="col-span-4">Title</div>
+            <div className="col-span-5">Ticket</div>
+            <div className="col-span-1">Agent</div>
             <div className="col-span-1">Level</div>
             <div className="col-span-1">Status</div>
             <div className="col-span-1 text-right">Worked</div>
@@ -863,7 +920,7 @@ export function ClientDetailPage() {
                         setExpandedId((prev) => (prev === t.id ? null : t.id))
                       }}
                       aria-label={expandedId === t.id ? 'Collapse ticket' : 'Expand ticket'}
-                      className="mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded border border-black/60 bg-black/90 text-white hover:bg-black dark:border-white/60 dark:bg-white/90 dark:text-black dark:hover:bg-white"
+                      className="mt-0.5 inline-flex h-5 w-5 items-center justify-center rounded border border-[rgb(var(--text-primary))]/65 bg-transparent text-[rgb(var(--text-primary))] hover:bg-[rgb(var(--text-primary))]/10"
                     >
                       {expandedId === t.id ? (
                         <ChevronDown className="h-3 w-3" />
@@ -884,19 +941,19 @@ export function ClientDetailPage() {
                       }
                       onClick={(e) => e.stopPropagation()}
                       type="checkbox"
-                      className="mt-1 h-4 w-4 rounded border border-black/70 bg-transparent accent-black dark:border-white/70 dark:accent-white"
-                      aria-label={`Select ${t.ticket_number}`}
+                      className="mt-1 h-4 w-4 rounded border border-[rgb(var(--text-primary))]/70 bg-transparent accent-[rgb(var(--accent-primary))]"
+                      aria-label={`Select ${ticketLabel(t)}`}
                     />
                   </div>
 
                   <div className="col-span-1 whitespace-nowrap text-text-secondary">{formatCreated(t.created_at)}</div>
 
-                  <div className="col-span-2 whitespace-nowrap pr-3 font-medium text-text-primary">
-                    {t.ticket_number}
+                  <div className="col-span-5 min-w-0 pr-3 font-medium text-text-primary">
+                    <div className="truncate">{ticketLabel(t)}</div>
                   </div>
 
-                  <div className="col-span-4 min-w-0">
-                    <div className="truncate text-text-primary">{t.title}</div>
+                  <div className="col-span-1 whitespace-nowrap text-text-secondary">
+                    {getAssignedAgentFirstName(t)}
                   </div>
 
                   <div className="col-span-1 text-text-secondary">{ticketLevel(t.priority)}</div>

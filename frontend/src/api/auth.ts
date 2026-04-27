@@ -1,12 +1,18 @@
 import { http } from './http'
 import type { ApiEnvelope, Me } from '../types/auth'
 
-export async function login(identifier: string, password: string) {
+export async function login(email: string, password: string) {
   const res = await http.post<ApiEnvelope<{}>>('/auth/login/', {
-    email: identifier,
-    username: identifier,
+    email,
     password,
   })
+  return res.data
+}
+
+export type UpdateProfileInput = Partial<Pick<Me, 'email' | 'full_name' | 'display_name' | 'timezone' | 'theme_preference'>>
+
+export async function updateProfile(input: UpdateProfileInput) {
+  const res = await http.patch<ApiEnvelope<Me>>('/auth/me/', input)
   return res.data
 }
 

@@ -4,6 +4,7 @@ export type ThemePreference = 'light' | 'dark' | 'system'
 export interface Me {
   id: string
   email: string
+  display_name: string
   full_name: string
   avatar: string | null
   role: UserRole

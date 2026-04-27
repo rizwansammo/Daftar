@@ -10,5 +10,7 @@ router.register(r"ticket-notes", TicketNoteViewSet, basename="ticket-note")
 router.register(r"time-entries", TimeEntryViewSet, basename="time-entry")
 
 urlpatterns = [
+    path("tickets/export/", TicketViewSet.as_view({"get": "export_tickets"}), name="ticket-export-compat"),
+    path("tickets/import/", TicketViewSet.as_view({"post": "import_tickets"}), name="ticket-import-compat"),
     path("", include(router.urls)),
 ]

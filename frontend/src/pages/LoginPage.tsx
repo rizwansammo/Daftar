@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import toast from 'react-hot-toast'
 import axios from 'axios'
+import toast from 'react-hot-toast'
+import { useLocation, useNavigate } from 'react-router-dom'
 
 import { login } from '../api/auth'
 
@@ -17,8 +17,7 @@ export function LoginPage() {
     e.preventDefault()
     setLoading(true)
     try {
-      const identifier = email.trim()
-      await login(identifier, password)
+      await login(email.trim(), password)
       toast.success('Welcome back')
       const from = (location.state as { from?: Location } | null)?.from
       navigate(from ? from.pathname : '/dashboard', { replace: true })
@@ -71,18 +70,18 @@ export function LoginPage() {
 
             <form onSubmit={onSubmit} className="space-y-4">
               <div className="space-y-2">
-                <label className="text-xs font-medium text-text-secondary">Email or username</label>
+                <label className="text-xs font-medium text-text-secondary">Email</label>
                 <input
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  type="text"
-                  name="identifier"
-                  autoComplete="username"
+                  type="email"
+                  name="email"
+                  autoComplete="email"
                   spellCheck={false}
                   autoCapitalize="none"
                   required
                   className="h-10 w-full rounded-xl border border-border-subtle bg-bg-secondary px-3 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-primary focus:ring-accent-primary/30"
-                  placeholder="you@company.com or username"
+                  placeholder="you@company.com"
                 />
               </div>
               <div className="space-y-2">
@@ -95,14 +94,14 @@ export function LoginPage() {
                   autoComplete="current-password"
                   required
                   className="h-10 w-full rounded-xl border border-border-subtle bg-bg-secondary px-3 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-primary focus:ring-accent-primary/30"
-                  placeholder="••••••••"
+                  placeholder="********"
                 />
               </div>
               <button
                 disabled={loading}
                 className="inline-flex h-10 w-full items-center justify-center rounded-xl bg-accent-primary text-sm font-medium text-white transition hover:bg-accent-hover disabled:opacity-70"
               >
-                {loading ? 'Signing in…' : 'Sign in'}
+                {loading ? 'Signing in...' : 'Sign in'}
               </button>
               <div className="text-center text-xs text-text-muted">
                 Invite-only system. Contact an admin if you need access.

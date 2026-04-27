@@ -6,6 +6,22 @@ from apps.core.models import Tag
 from .models import Client, Ticket, TicketNote, TimeEntry
 
 
+def _split_ticket(value: str) -> tuple[str, str]:
+    raw = (value or "").strip()
+    if not raw:
+        raise serializers.ValidationError({"ticket": "Ticket is required"})
+
+    ticket_parts = raw.split(" - ", 1)
+    if len(ticket_parts) != 2:
+        raise serializers.ValidationError({"ticket": "Use format: TICKET_NUMBER - Subject"})
+
+    ticket_number = ticket_parts[0].strip()
+    title = ticket_parts[1].strip()
+    if not ticket_number or not title:
+        raise serializers.ValidationError({"ticket": "Use format: TICKET_NUMBER - Subject"})
+    return ticket_number, title
+
+
 class TagSerializer(serializers.ModelSerializer):
     class Meta:
         model = Tag
@@ -15,6 +31,7 @@ class TagSerializer(serializers.ModelSerializer):
 class ClientSerializer(serializers.ModelSerializer):
     ticket_count = serializers.IntegerField(read_only=True)
     doc_count = serializers.IntegerField(read_only=True)
+    boilerplate_count = serializers.IntegerField(read_only=True)
     completed_ticket_count = serializers.IntegerField(read_only=True)
     pending_ticket_count = serializers.IntegerField(read_only=True)
     handed_over_ticket_count = serializers.IntegerField(read_only=True)
@@ -31,6 +48,7 @@ class ClientSerializer(serializers.ModelSerializer):
             "created_at",
             "ticket_count",
             "doc_count",
+            "boilerplate_count",
             "completed_ticket_count",
             "pending_ticket_count",
             "handed_over_ticket_count",
@@ -92,6 +110,9 @@ class TimeEntrySerializer(serializers.ModelSerializer):
 
 
 class TicketSerializer(serializers.ModelSerializer):
+    ticket = serializers.CharField(required=False)
+    ticket_number = serializers.CharField(required=False)
+    title = serializers.CharField(required=False)
     client = ClientSerializer(read_only=True)
     client_id = serializers.UUIDField(write_only=True)
 
@@ -109,6 +130,7 @@ class TicketSerializer(serializers.ModelSerializer):
         model = Ticket
         fields = (
             "id",
+            "ticket",
             "ticket_number",
             "title",
             "client",
@@ -127,6 +149,21 @@ class TicketSerializer(serializers.ModelSerializer):
             "total_time_seconds",
         )
 
+    def validate(self, attrs):
+        ticket_raw = attrs.pop("ticket", None)
+        if ticket_raw is not None:
+            ticket_number, title = _split_ticket(ticket_raw)
+            attrs["ticket_number"] = ticket_number
+            attrs["title"] = title
+
+        if self.instance is None:
+            ticket_number = (attrs.get("ticket_number") or "").strip()
+            title = (attrs.get("title") or "").strip()
+            if not ticket_number or not title:
+                raise serializers.ValidationError({"ticket": "Ticket is required"})
+
+        return attrs
+
     def create(self, validated_data):
         from django.contrib.auth import get_user_model
 
@@ -140,6 +177,9 @@ class TicketSerializer(serializers.ModelSerializer):
         if assigned_agent_id:
             User = get_user_model()
             ticket.assigned_agent = User.objects.get(id=assigned_agent_id)
+            ticket.save(update_fields=["assigned_agent"])
+        elif self.context.get("request") and self.context["request"].user.is_authenticated:
+            ticket.assigned_agent = self.context["request"].user
             ticket.save(update_fields=["assigned_agent"])
 
         if tag_ids:

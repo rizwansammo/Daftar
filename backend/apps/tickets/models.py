@@ -62,6 +62,14 @@ class Ticket(models.Model):
     def __str__(self) -> str:
         return f"{self.ticket_number} - {self.title}"
 
+    @property
+    def ticket(self) -> str:
+        ticket_number = (self.ticket_number or "").strip()
+        title = (self.title or "").strip()
+        if ticket_number and title:
+            return f"{ticket_number} - {title}"
+        return ticket_number or title
+
     class Meta:
         ordering = ["-created_at"]
         indexes = [

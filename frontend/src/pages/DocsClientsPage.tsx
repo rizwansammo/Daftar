@@ -37,7 +37,6 @@ export function DocsClientsPage() {
 
   const clients = query.data?.results ?? []
   const totalDocs = clients.reduce((sum, client) => sum + (client.doc_count ?? 0), 0)
-  const documentedClients = clients.filter((client) => (client.doc_count ?? 0) > 0).length
 
   return (
     <div className="space-y-6">
@@ -62,7 +61,7 @@ export function DocsClientsPage() {
         </label>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
         <div className="rounded-lg border border-border-subtle bg-bg-card p-4">
           <div className="flex items-center justify-between">
             <div className="text-xs text-text-muted">Clients</div>
@@ -76,13 +75,6 @@ export function DocsClientsPage() {
             <FileText className="h-4 w-4 text-text-muted" />
           </div>
           <div className="mt-2 text-2xl font-semibold">{totalDocs}</div>
-        </div>
-        <div className="rounded-lg border border-border-subtle bg-bg-card p-4">
-          <div className="flex items-center justify-between">
-            <div className="text-xs text-text-muted">Documented</div>
-            <BookOpen className="h-4 w-4 text-text-muted" />
-          </div>
-          <div className="mt-2 text-2xl font-semibold">{documentedClients}</div>
         </div>
       </div>
 
@@ -112,7 +104,6 @@ export function DocsClientsPage() {
               <tr>
                 <th className="px-4 py-3 font-medium">Client</th>
                 <th className="hidden px-4 py-3 font-medium md:table-cell">Documents</th>
-                <th className="hidden px-4 py-3 font-medium md:table-cell">Ticket load</th>
                 <th className="px-4 py-3 font-medium" />
               </tr>
             </thead>
@@ -135,7 +126,6 @@ export function DocsClientsPage() {
                     </div>
                   </td>
                   <td className="hidden px-4 py-3 text-text-secondary md:table-cell">{client.doc_count ?? 0}</td>
-                  <td className="hidden px-4 py-3 text-text-secondary md:table-cell">{client.ticket_count ?? 0}</td>
                   <td className="px-4 py-3 text-right text-text-muted">
                     <ChevronRight className="ml-auto h-4 w-4" />
                   </td>

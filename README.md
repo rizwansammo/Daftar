@@ -1,68 +1,52 @@
-# Daftar 🛠️
+# Daftar
 
-**Daftar** is an internal operations platform for IT support teams (MSP-style workflow).  
-It combines ticketing, client tracking, documentation, reminders, and team operations in one place.
+Daftar is an internal operations platform for IT Support teams in MSP workflows.  
+It combines ticket tracking, reminders, calendar planning, KB documentation, boilerplates, and team account management in one dashboard.
 
-## ✨ Highlights
+## Highlights
 
-- 🔐 JWT + HttpOnly cookie authentication
-- 🎫 Client-centered ticket workflow with notes and time entries
-- 📚 Premium documentation workspace (client libraries + rich editor)
-- 📊 Dashboard and operational structure ready for scaling
-- 🐳 Docker-first development setup (PostgreSQL + Redis + Django + React + Celery)
+- Email-only login with JWT in HttpOnly cookies
+- Role model: **Manager** (`ADMIN`) and **Agent** (`AGENT`)
+- Client-based ticket workspace with notes and worked-time tracking
+- Dedicated Timer flow (`Start / Pause / Resume / Stop + Save`)
+- Reminders + weekly hourly Calendar + monthly event view
+- KB Docs (TipTap editor, reader mode, PDF print/download, snapshots)
+- Boilerplate canned messages grouped by client
+- Tools menu for ticket **CSV/PDF export** and **CSV import**
 
-## 🧱 Tech Stack
+## Current Module Status
 
-- **Backend:** Django 5, DRF, SimpleJWT, Allauth, Celery, Channels, PostgreSQL/SQLite
-- **Frontend:** React + Vite + TypeScript + Tailwind + TipTap + React Query + Zustand
-- **Infra:** Docker Compose, Redis, PostgreSQL
+- Completed:
+  - Auth + Profile
+  - Dashboard
+  - Clients
+  - Tickets
+  - Timer
+  - Agents
+  - Reminders
+  - Calendar
+  - Boilerplate
+  - KB Docs
+  - Tools (Import/Export)
+- In progress:
+  - Schedule page UX (route exists, currently placeholder)
 
-## ✅ Current Features
+## Tech Stack
 
-- Auth: Login / refresh / logout / current user profile
-- Clients: list, create, update, delete-with-password confirmation
-- Tickets: create, update, delete, notes, manual time entries, timer endpoints
-- Docs:
-  - client-based documentation library
-  - search/sort and view modes
-  - rich text editing (headings, lists, task lists, tables, links, images, formatting)
-  - autosave + manual save + version snapshot endpoint
-  - markdown export/copy + print
-- API Docs: OpenAPI schema and Swagger UI
+- Backend: Python 3.12+, Django 5.1, DRF, SimpleJWT, Celery, Redis, Channels
+- Frontend: React 19 + Vite + TypeScript + Tailwind + TanStack Query + Zustand + TipTap
+- Infra: Docker Compose, PostgreSQL 15, Redis 7
 
-## 🚧 Module Status
+## Requirements
 
-- ✅ Auth + Client + Ticket core
-- ✅ Documentation module (rich editor)
-- 🟡 Dashboard (basic structure, needs richer data widgets)
-- 🟡 Schedule / Agents / Reminders / Settings (base backend exists, frontend pages still in progress)
+- Python 3.12+
+- Node.js 20+ and npm 10+
+- Git
+- Docker Desktop (recommended for full stack)
 
-## 🗺️ Roadmap (Planned)
+## Installation
 
-- Real-time notifications and activity streams
-- Global command palette and faster keyboard workflows
-- Full reminders UI + snooze UX + in-app notification center
-- Shift scheduler UI (weekly/monthly operations view)
-- Expanded analytics (SLA, workload, trend reports)
-- Hardened role-based admin UX and team management
-
-## 📋 Requirements
-
-- **Python:** 3.12+ (recommended)
-- **Node.js:** 20+ (recommended)
-- **npm:** 10+
-- **Docker Desktop** (if using Docker setup)
-- **Git**
-
-For full production-like local stack:
-- PostgreSQL 15
-- Redis 7
-
-## 🚀 Installation
-
-### Option A: Docker (Recommended)
-
-Works on both Windows and Linux.
+### Option A: Docker (Windows/Linux) - Recommended
 
 ```bash
 git clone <your-repo-url>
@@ -72,13 +56,14 @@ docker compose up --build
 ```
 
 Services:
-- Frontend: `http://localhost:5173`
-- Backend API: `http://localhost:8000`
-- Swagger: `http://localhost:8000/api/docs/`
 
-### Option B: Local Development (Windows / Linux)
+- Frontend: `http://127.0.0.1:5173`
+- Backend API: `http://127.0.0.1:8000`
+- Swagger: `http://127.0.0.1:8000/api/docs/`
 
-#### 1) Clone and configure env
+### Option B: Local Dev (Windows/Linux)
+
+1) Clone + env
 
 ```bash
 git clone <your-repo-url>
@@ -86,9 +71,9 @@ cd Daftar
 cp .env.example .env
 ```
 
-#### 2) Backend setup
+2) Backend
 
-##### Windows (PowerShell)
+Windows (PowerShell):
 
 ```powershell
 cd backend
@@ -99,7 +84,7 @@ python manage.py migrate
 python manage.py runserver
 ```
 
-##### Linux
+Linux:
 
 ```bash
 cd backend
@@ -110,17 +95,9 @@ python manage.py migrate
 python manage.py runserver
 ```
 
-#### 3) Frontend setup
+3) Frontend
 
-##### Windows (PowerShell)
-
-```powershell
-cd frontend
-npm install
-npm run dev
-```
-
-##### Linux
+Windows/Linux:
 
 ```bash
 cd frontend
@@ -128,38 +105,66 @@ npm install
 npm run dev
 ```
 
-## ⚙️ Environment Notes
+## First Manager Account Setup
 
-- `USE_SQLITE=1` in `.env` gives a quick local setup.
-- Set `USE_SQLITE=0` to use PostgreSQL.
-- Update `CORS_ALLOWED_ORIGINS` for your frontend host/port.
+Manager actions (create/delete users, reset others' passwords) require `role=ADMIN`.
 
-## 🔎 Useful URLs
+1. Create a superuser:
+
+```bash
+cd backend
+python manage.py createsuperuser
+```
+
+2. Open Django admin (`/admin`) and ensure this user has:
+
+- `role = ADMIN`
+- `display_name` set (used across Tickets and UI)
+
+Then log in from the app login page with email + password.
+
+## API Notes
+
+- Base URL: `/api/v1/`
+- Auth:
+  - `POST /api/v1/auth/login/`
+  - `POST /api/v1/auth/refresh/`
+  - `POST /api/v1/auth/logout/`
+  - `GET/PATCH /api/v1/auth/me/`
+- Tools:
+  - `GET /api/v1/tickets/tools/export/`
+  - `POST /api/v1/tickets/tools/import/`
+
+## CSV Import Headers (Tools -> Import)
+
+Required (case-insensitive):
+
+- `date`
+- `ticket` (format: `TICKET_NUMBER - Subject`)
+- `agent`
+- `level` (`L1`, `L2`, `L3`)
+- `status`
+- `worked` (HH:MM or hour value)
+
+Optional:
+
+- `detail`
+
+## Useful URLs
 
 - Frontend: `http://127.0.0.1:5173`
-- Health check: `http://127.0.0.1:8000/health/`
+- Health: `http://127.0.0.1:8000/health/`
 - Swagger: `http://127.0.0.1:8000/api/docs/`
-- OpenAPI schema: `http://127.0.0.1:8000/api/schema/`
+- OpenAPI Schema: `http://127.0.0.1:8000/api/schema/`
 
-## 🧪 Helpful Commands
+## Roadmap
 
-```bash
-# Frontend
-npm run build
-npm run lint
+- Schedule module completion (weekly/monthly staffing UX)
+- Reminder push channels (web push / external channels)
+- Notification center enhancements
+- Analytics dashboards (SLA, workload trends)
+- More Tools modules beyond import/export
 
-# Backend
-python manage.py check
-python manage.py makemigrations
-python manage.py migrate
-```
+---
 
-## 🤝 Contributing
-
-PRs and issue reports are welcome.  
-If you plan a major feature, open an issue first so we can align on scope and architecture.
-
-## 📄 License
-
-Add your preferred license here (MIT, Apache-2.0, Proprietary, etc.).
-
+Built for real operational support workflows with a clean, high-density UI and role-aware controls.

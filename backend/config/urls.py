@@ -35,4 +35,5 @@ urlpatterns = [
     path('api/v1/', include('apps.schedule.urls')),
     path('api/v1/', include('apps.reminders.urls')),
     path('api/v1/', include('apps.docs.urls')),
+    path('api/v1/', include('apps.boilerplates.urls')),
 ]

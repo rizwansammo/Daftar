@@ -19,6 +19,7 @@ class CustomUser(AbstractUser):
     username = models.CharField(max_length=150, blank=True)
     email = models.EmailField(unique=True)
     full_name = models.CharField(max_length=255, blank=True)
+    display_name = models.CharField(max_length=255, blank=True)
     avatar = models.ImageField(upload_to="avatars/", blank=True, null=True)
 
     role = models.CharField(max_length=20, choices=Role.choices, default=Role.AGENT)
@@ -30,7 +31,7 @@ class CustomUser(AbstractUser):
     color_tag = models.CharField(max_length=16, blank=True)
 
     USERNAME_FIELD = "email"
-    REQUIRED_FIELDS = ["username"]
+    REQUIRED_FIELDS = []
 
     def __str__(self) -> str:
         return self.email

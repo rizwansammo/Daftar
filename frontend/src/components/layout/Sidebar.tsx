@@ -2,11 +2,13 @@ import { NavLink } from 'react-router-dom'
 import {
   BookOpen,
   CalendarDays,
+  FileText,
   LayoutDashboard,
-  Settings,
+  PlayCircle,
   StickyNote,
   Ticket,
   Users,
+  Wrench,
 } from 'lucide-react'
 
 type NavItem = {
@@ -17,13 +19,15 @@ type NavItem = {
 
 const items: NavItem[] = [
   { to: '/dashboard', label: 'Dashboard', Icon: LayoutDashboard },
+  { to: '/timer', label: 'Timer', Icon: PlayCircle },
   { to: '/clients', label: 'Clients', Icon: Users },
   { to: '/tickets', label: 'Tickets', Icon: Ticket },
-  { to: '/schedule', label: 'Schedule', Icon: CalendarDays },
+  { to: '/calendar', label: 'Calendar', Icon: CalendarDays },
   { to: '/agents', label: 'Agents', Icon: Users },
   { to: '/reminders', label: 'Reminders', Icon: StickyNote },
-  { to: '/docs', label: 'Docs', Icon: BookOpen },
-  { to: '/settings/profile', label: 'Settings', Icon: Settings },
+  { to: '/boilerplates', label: 'Boilerplate', Icon: FileText },
+  { to: '/docs', label: 'KB Docs', Icon: BookOpen },
+  { to: '/tools', label: 'Tools', Icon: Wrench },
 ]
 
 function linkClass(isActive: boolean) {

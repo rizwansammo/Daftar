@@ -22,6 +22,21 @@ function IconButton(props: React.ButtonHTMLAttributes<HTMLButtonElement>) {
   )
 }
 
+function getUserLabel(meState: ReturnType<typeof useAuthStore.getState>['me']) {
+  return meState?.display_name || meState?.full_name || meState?.email || '-'
+}
+
+function getAvatarInitials(label: string) {
+  const words = label
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+
+  if (!words.length) return 'U'
+  if (words.length === 1) return words[0][0]?.toUpperCase() ?? 'U'
+  return `${words[0][0] ?? ''}${words[1][0] ?? ''}`.toUpperCase()
+}
+
 export function Header() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -59,6 +74,8 @@ export function Header() {
     setIsLight(nextIsLight)
   }
 
+  const userLabel = getUserLabel(meState)
+
   return (
     <header className="sticky top-0 z-20 h-14 border-b border-border-subtle bg-bg-secondary/80 backdrop-blur">
       <div className="flex h-full items-center justify-between px-6">
@@ -74,10 +91,16 @@ export function Header() {
         <div className="flex items-center gap-2">
           <div className="hidden items-center gap-2 md:flex">
             <div className="text-xs text-text-muted">Signed in as</div>
-            <div className="text-xs font-medium text-text-secondary">
-              {meState?.full_name || meState?.email || '—'}
-            </div>
+            <div className="text-xs font-medium text-text-secondary">{userLabel}</div>
           </div>
+          <Link
+            to="/profile"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-emerald-400/45 bg-emerald-600 text-xs font-semibold text-white shadow-[0_0_0_1px_rgba(16,185,129,0.25)] transition hover:bg-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-300/60"
+            aria-label="Open profile"
+            title="Profile"
+          >
+            {getAvatarInitials(userLabel)}
+          </Link>
           <IconButton onClick={toggleTheme} aria-label="Toggle theme">
             {isLight ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
           </IconButton>
