@@ -295,6 +295,11 @@ function snapshotFor(input: {
 function DocumentWorkspace({ doc }: { doc: Document }) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const backUrl = doc.client
+    ? `/docs/clients/${encodeURIComponent(doc.client)}${
+        doc.category?.id ? `?folder=${encodeURIComponent(doc.category.id)}` : ''
+      }`
+    : '/docs'
 
   const [mode, setMode] = useState<Mode>('view')
   const [isReaderOpen, setIsReaderOpen] = useState(false)
@@ -316,9 +321,12 @@ function DocumentWorkspace({ doc }: { doc: Document }) {
   )
 
   const categoriesQuery = useQuery({
-    queryKey: ['doc-categories'],
+    queryKey: ['doc-categories', doc.client],
     queryFn: async () => {
-      const res = await listDocCategories()
+      const res = await listDocCategories({
+        client_id: doc.client ?? undefined,
+        ordering: 'name',
+      })
       return res.data
     },
   })
@@ -359,8 +367,7 @@ function DocumentWorkspace({ doc }: { doc: Document }) {
     onSuccess: () => {
       toast.success('Deleted')
       queryClient.invalidateQueries({ queryKey: ['docs'], exact: false })
-      if (doc.client) navigate(`/docs/clients/${encodeURIComponent(doc.client)}`)
-      else navigate('/docs')
+      navigate(backUrl)
     },
     onError: (error) => {
       toast.error(getErrorMessage(error, 'Could not delete'))
@@ -487,8 +494,7 @@ function DocumentWorkspace({ doc }: { doc: Document }) {
           <button
             type="button"
             onClick={() => {
-              if (doc.client) navigate(`/docs/clients/${encodeURIComponent(doc.client)}`)
-              else navigate('/docs')
+              navigate(backUrl)
             }}
             className="mb-3 inline-flex h-8 items-center gap-2 rounded-md border border-border-subtle bg-bg-secondary px-3 text-xs text-text-secondary transition hover:bg-bg-hover hover:text-text-primary"
           >

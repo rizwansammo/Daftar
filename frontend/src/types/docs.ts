@@ -16,6 +16,8 @@ export type DocumentCategory = {
   name: string
   color: string
   icon: string
+  client: string | null
+  parent: string | null
   created_by: Me | null
   created_at: string
 }

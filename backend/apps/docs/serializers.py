@@ -2,6 +2,7 @@ from rest_framework import serializers
 
 from apps.accounts.serializers import MeSerializer
 from apps.core.models import Tag
+from apps.tickets.models import Client
 
 from .models import Document, DocumentCategory, DocumentVersion
 
@@ -14,17 +15,76 @@ class TagSerializer(serializers.ModelSerializer):
 
 class DocumentCategorySerializer(serializers.ModelSerializer):
     created_by = MeSerializer(read_only=True)
+    client = serializers.UUIDField(source="client_id", read_only=True)
+    parent = serializers.UUIDField(source="parent_id", read_only=True)
+    client_id = serializers.PrimaryKeyRelatedField(
+        source="client",
+        queryset=Client.objects.all(),
+        required=False,
+        allow_null=True,
+        write_only=True,
+    )
+    parent_id = serializers.PrimaryKeyRelatedField(
+        source="parent",
+        queryset=DocumentCategory.objects.select_related("parent", "client").all(),
+        required=False,
+        allow_null=True,
+        write_only=True,
+    )
 
     class Meta:
         model = DocumentCategory
-        fields = ("id", "name", "color", "icon", "created_by", "created_at")
+        fields = (
+            "id",
+            "name",
+            "color",
+            "icon",
+            "client",
+            "parent",
+            "client_id",
+            "parent_id",
+            "created_by",
+            "created_at",
+        )
         read_only_fields = ("created_by", "created_at")
+
+    def validate(self, attrs):
+        parent = attrs.get("parent", self.instance.parent if self.instance else None)
+        client = attrs.get("client", self.instance.client if self.instance else None)
+
+        if parent and not client:
+            attrs["client"] = parent.client
+            client = parent.client
+
+        if parent and client and parent.client_id and parent.client_id != client.id:
+            raise serializers.ValidationError({"parent_id": "Parent folder belongs to a different client."})
+
+        if self.instance and parent:
+            cursor = parent
+            while cursor:
+                if cursor.id == self.instance.id:
+                    raise serializers.ValidationError({"parent_id": "A folder cannot be nested inside itself."})
+                cursor = cursor.parent
+
+        return attrs
 
 
 class DocumentSerializer(serializers.ModelSerializer):
-    client_id = serializers.UUIDField(write_only=True, required=False, allow_null=True)
+    client_id = serializers.PrimaryKeyRelatedField(
+        source="client",
+        queryset=Client.objects.all(),
+        write_only=True,
+        required=False,
+        allow_null=True,
+    )
     category = DocumentCategorySerializer(read_only=True)
-    category_id = serializers.UUIDField(write_only=True, required=False, allow_null=True)
+    category_id = serializers.PrimaryKeyRelatedField(
+        source="category",
+        queryset=DocumentCategory.objects.select_related("client").all(),
+        write_only=True,
+        required=False,
+        allow_null=True,
+    )
 
     author = MeSerializer(read_only=True)
     last_edited_by = MeSerializer(read_only=True)
@@ -53,16 +113,20 @@ class DocumentSerializer(serializers.ModelSerializer):
         )
         read_only_fields = ("author", "created_at", "updated_at", "last_edited_by")
 
+    def validate(self, attrs):
+        client = attrs.get("client", self.instance.client if self.instance else None)
+        category = attrs.get("category", self.instance.category if self.instance else None)
+
+        if category and category.client_id:
+            if client and category.client_id != client.id:
+                raise serializers.ValidationError({"category_id": "Selected folder belongs to a different client."})
+            if client is None:
+                attrs["client"] = category.client
+
+        return attrs
+
     def create(self, validated_data):
-        client_id = validated_data.pop("client_id", None)
-        category_id = validated_data.pop("category_id", None)
         tag_ids = validated_data.pop("tag_ids", [])
-
-        if client_id is not None:
-            validated_data["client_id"] = client_id
-
-        if category_id:
-            validated_data["category"] = DocumentCategory.objects.get(id=category_id)
 
         validated_data["author"] = self.context["request"].user
         validated_data["last_edited_by"] = self.context["request"].user
@@ -73,15 +137,7 @@ class DocumentSerializer(serializers.ModelSerializer):
         return doc
 
     def update(self, instance, validated_data):
-        client_id = validated_data.pop("client_id", None)
-        category_id = validated_data.pop("category_id", None)
         tag_ids = validated_data.pop("tag_ids", None)
-
-        if client_id is not None:
-            instance.client_id = client_id
-
-        if category_id is not None:
-            instance.category = DocumentCategory.objects.get(id=category_id) if category_id else None
 
         for attr, value in validated_data.items():
             setattr(instance, attr, value)

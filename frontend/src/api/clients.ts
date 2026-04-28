@@ -41,3 +41,14 @@ export async function deleteClientWithPassword(clientId: string, password: strin
   const res = await http.post<ApiEnvelope<{}>>(`/clients/${encodeURIComponent(clientId)}/delete/`, { password })
   return res.data
 }
+
+export async function bulkDeleteClientsWithPassword(clientIds: string[], password: string) {
+  const res = await http.post<ApiEnvelope<{ deleted_count: number; not_found_ids?: string[] }>>(
+    '/clients/bulk-delete/',
+    {
+      client_ids: clientIds,
+      password,
+    },
+  )
+  return res.data
+}

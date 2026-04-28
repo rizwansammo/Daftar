@@ -90,11 +90,11 @@ function Badge(props: { children: string; tone?: 'muted' | 'danger' | 'warning' 
   const tone = props.tone ?? 'muted'
   const cls =
     tone === 'danger'
-      ? 'bg-red-500/15 text-red-200 ring-red-500/30'
+      ? 'bg-[rgb(var(--danger))]/25 text-[rgb(var(--danger))] ring-[rgb(var(--danger))]/45'
       : tone === 'warning'
-        ? 'bg-amber-500/15 text-amber-200 ring-amber-500/30'
+        ? 'bg-[rgb(var(--warning))]/25 text-[rgb(var(--warning))] ring-[rgb(var(--warning))]/45'
         : tone === 'ok'
-          ? 'bg-emerald-500/15 text-emerald-200 ring-emerald-500/30'
+          ? 'bg-[rgb(var(--success))]/25 text-[rgb(var(--success))] ring-[rgb(var(--success))]/45'
           : 'bg-white/5 text-text-secondary ring-border-subtle'
 
   return (
@@ -342,7 +342,6 @@ export function ClientDetailPage() {
       if (!clientId) throw new Error('Missing client id')
       const raw = ticket.trim()
       if (!raw) throw new Error('Missing fields')
-      if (!raw.includes(' - ')) throw new Error('Use format: TICKET_NUMBER - Subject')
 
       const created = await createTicket({
         ticket: raw,

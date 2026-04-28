@@ -39,10 +39,8 @@ function parseTicketField(raw: string) {
   const value = raw.trim()
   if (!value) return null
   const separator = value.indexOf(' - ')
-  if (separator < 1) return null
-  const ticketNumber = value.slice(0, separator).trim()
-  const subject = value.slice(separator + 3).trim()
-  if (!ticketNumber || !subject) return null
+  const ticketNumber = separator >= 0 ? value.slice(0, separator).trim() : value
+  if (!ticketNumber) return null
   return { ticketNumber }
 }
 
@@ -152,7 +150,7 @@ export function TimerPage() {
     if (status === 'running') return
     const parsed = parseTicketField(ticketField)
     if (!parsed) {
-      toast.error('Use format: TICKET_NUMBER - Subject')
+      toast.error('Ticket number is required')
       return
     }
     if (!clientId) {
@@ -204,7 +202,7 @@ export function TimerPage() {
   const saveMutation = useMutation({
     mutationFn: async () => {
       const parsed = parseTicketField(ticketField)
-      if (!parsed) throw new Error('Use format: TICKET_NUMBER - Subject')
+      if (!parsed) throw new Error('Ticket number is required')
       if (!clientId) throw new Error('Select a client')
       if (accumulatedSeconds <= 0) throw new Error('Timer has no tracked time')
 
@@ -217,7 +215,7 @@ export function TimerPage() {
         const existing = await getTicket(ticketNumber)
         ticketId = existing.data.id
         await updateTicket(ticketNumber, {
-          ticket: ticketField.trim(),
+          ticket: ticketField.trim() || ticketNumber,
           client_id: clientId,
           priority,
           status: 'PENDING',
@@ -226,7 +224,7 @@ export function TimerPage() {
       } catch (error) {
         if (axios.isAxiosError(error) && error.response?.status === 404) {
           const created = await createTicket({
-            ticket: ticketField.trim(),
+            ticket: ticketField.trim() || ticketNumber,
             client_id: clientId,
             priority,
             status: 'PENDING',

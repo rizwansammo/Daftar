@@ -8,6 +8,7 @@ export type ListDocsParams = {
   search?: string
   client_id?: string
   category_id?: string
+  folder_id?: string
   is_published?: boolean
   ordering?: string
 }
@@ -60,15 +61,34 @@ export async function deleteDoc(docId: string) {
   return res.data
 }
 
-export async function listDocCategories() {
-  const res = await http.get<ApiEnvelope<CursorPage<DocumentCategory>>>('/doc-categories/', {
-    params: { ordering: 'name' },
-  })
+export type ListDocCategoriesParams = {
+  cursor?: string
+  search?: string
+  ordering?: string
+  client_id?: string
+  parent_id?: string
+}
+
+export async function listDocCategories(params?: ListDocCategoriesParams) {
+  const res = await http.get<ApiEnvelope<CursorPage<DocumentCategory>>>('/doc-categories/', { params })
   return res.data
 }
 
-export async function createDocCategory(input: { name: string; color?: string; icon?: string }) {
+export async function createDocCategory(input: {
+  name: string
+  color?: string
+  icon?: string
+  client_id?: string | null
+  parent_id?: string | null
+}) {
   const res = await http.post<ApiEnvelope<DocumentCategory>>('/doc-categories/', input)
+  return res.data
+}
+
+export async function getDocCategoryPath(categoryId: string) {
+  const res = await http.get<ApiEnvelope<Array<{ id: string; name: string }>>>(
+    `/doc-categories/${encodeURIComponent(categoryId)}/path/`,
+  )
   return res.data
 }
 

@@ -12,13 +12,16 @@ def _split_ticket(value: str) -> tuple[str, str]:
         raise serializers.ValidationError({"ticket": "Ticket is required"})
 
     ticket_parts = raw.split(" - ", 1)
-    if len(ticket_parts) != 2:
-        raise serializers.ValidationError({"ticket": "Use format: TICKET_NUMBER - Subject"})
+    if len(ticket_parts) == 1:
+        ticket_number = ticket_parts[0].strip()
+        if not ticket_number:
+            raise serializers.ValidationError({"ticket": "Ticket is required"})
+        return ticket_number, ""
 
     ticket_number = ticket_parts[0].strip()
     title = ticket_parts[1].strip()
-    if not ticket_number or not title:
-        raise serializers.ValidationError({"ticket": "Use format: TICKET_NUMBER - Subject"})
+    if not ticket_number:
+        raise serializers.ValidationError({"ticket": "Ticket is required"})
     return ticket_number, title
 
 
@@ -154,13 +157,21 @@ class TicketSerializer(serializers.ModelSerializer):
         if ticket_raw is not None:
             ticket_number, title = _split_ticket(ticket_raw)
             attrs["ticket_number"] = ticket_number
-            attrs["title"] = title
+            if title:
+                attrs["title"] = title
 
         if self.instance is None:
             ticket_number = (attrs.get("ticket_number") or "").strip()
             title = (attrs.get("title") or "").strip()
-            if not ticket_number or not title:
+            if not ticket_number:
                 raise serializers.ValidationError({"ticket": "Ticket is required"})
+            if not title:
+                attrs["title"] = "No subject"
+        else:
+            # On update, allow ticket_number-only updates (keep existing title).
+            title = (attrs.get("title") or "").strip()
+            if not title and "title" not in attrs:
+                pass
 
         return attrs
 

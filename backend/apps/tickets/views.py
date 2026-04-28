@@ -345,6 +345,77 @@ class ClientViewSet(viewsets.ModelViewSet):
 
         return Response({"success": True, "data": {}, "message": "Deleted", "errors": {}}, status=status.HTTP_200_OK)
 
+    @action(detail=False, methods=["post"], url_path="bulk-delete")
+    def bulk_delete_with_password(self, request):
+        password = request.data.get("password")
+        if not isinstance(password, str) or not password.strip():
+            return Response(
+                {"success": False, "data": {}, "message": "Password required", "errors": {"password": "Required"}},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user = request.user
+        if not user.check_password(password):
+            return Response(
+                {"success": False, "data": {}, "message": "Invalid password", "errors": {"password": "Invalid"}},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        client_ids = request.data.get("client_ids")
+        if not isinstance(client_ids, list) or not client_ids:
+            return Response(
+                {
+                    "success": False,
+                    "data": {},
+                    "message": "client_ids required",
+                    "errors": {"client_ids": "Provide a non-empty list of client IDs"},
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        protected_ids: list[str] = []
+        not_found_ids: list[str] = []
+        deleted_count = 0
+
+        for client_id in client_ids:
+            if not isinstance(client_id, str) or not client_id.strip():
+                continue
+            client = Client.objects.filter(id=client_id).first()
+            if not client:
+                not_found_ids.append(client_id)
+                continue
+
+            try:
+                client.delete()
+                deleted_count += 1
+            except ProtectedError:
+                protected_ids.append(client_id)
+
+        if protected_ids:
+            return Response(
+                {
+                    "success": False,
+                    "data": {"deleted_count": deleted_count},
+                    "message": "Some clients could not be deleted",
+                    "errors": {
+                        "protected_ids": protected_ids,
+                        "not_found_ids": not_found_ids,
+                        "detail": "Delete or move tickets first",
+                    },
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        return Response(
+            {
+                "success": True,
+                "data": {"deleted_count": deleted_count, "not_found_ids": not_found_ids},
+                "message": "Deleted",
+                "errors": {},
+            },
+            status=status.HTTP_200_OK,
+        )
+
 
 class TicketViewSet(viewsets.ModelViewSet):
     queryset = (

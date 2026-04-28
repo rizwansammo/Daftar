@@ -12,6 +12,20 @@ class DocumentCategory(models.Model):
     name = models.CharField(max_length=255)
     color = models.CharField(max_length=32, blank=True)
     icon = models.CharField(max_length=64, blank=True)
+    client = models.ForeignKey(
+        Client,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="doc_categories",
+    )
+    parent = models.ForeignKey(
+        "self",
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="children",
+    )
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="created_doc_categories"
     )

@@ -12,7 +12,7 @@ from .serializers import (
 
 
 class DocumentCategoryViewSet(viewsets.ModelViewSet):
-    queryset = DocumentCategory.objects.select_related("created_by").all()
+    queryset = DocumentCategory.objects.select_related("created_by", "parent", "client").all()
     serializer_class = DocumentCategorySerializer
     permission_classes = [permissions.IsAuthenticated]
 
@@ -20,8 +20,36 @@ class DocumentCategoryViewSet(viewsets.ModelViewSet):
     ordering_fields = ["name", "created_at"]
     pagination_ordering = "name"
 
+    def get_queryset(self):
+        queryset = super().get_queryset()
+
+        client_id = self.request.query_params.get("client_id")
+        if client_id:
+            queryset = queryset.filter(client_id=client_id)
+
+        if "parent_id" in self.request.query_params:
+            parent_id = (self.request.query_params.get("parent_id") or "").strip()
+            if not parent_id or parent_id.lower() == "null":
+                queryset = queryset.filter(parent__isnull=True)
+            else:
+                queryset = queryset.filter(parent_id=parent_id)
+
+        return queryset
+
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
+
+    @action(detail=True, methods=["get"], url_path="path")
+    def path(self, request, pk=None):
+        folder = self.get_object()
+        path_items = []
+        cursor = folder
+        while cursor:
+            path_items.append({"id": str(cursor.id), "name": cursor.name})
+            cursor = cursor.parent
+
+        path_items.reverse()
+        return Response(path_items, status=status.HTTP_200_OK)
 
 
 class DocumentViewSet(viewsets.ModelViewSet):
@@ -37,6 +65,18 @@ class DocumentViewSet(viewsets.ModelViewSet):
     filterset_fields = ["client_id", "category_id", "is_published"]
     ordering_fields = ["updated_at", "created_at", "title"]
     pagination_ordering = "-updated_at"
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+
+        if "folder_id" in self.request.query_params:
+            folder_id = (self.request.query_params.get("folder_id") or "").strip()
+            if not folder_id or folder_id.lower() == "null":
+                queryset = queryset.filter(category__isnull=True)
+            else:
+                queryset = queryset.filter(category_id=folder_id)
+
+        return queryset
 
     @action(detail=True, methods=["post"], url_path="versions")
     def create_version(self, request, pk=None):
