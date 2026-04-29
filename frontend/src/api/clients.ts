@@ -8,7 +8,7 @@ export async function listClients(search?: string, opts?: { archived?: boolean }
     params: {
       ...(search ? { search } : {}),
       ordering: 'name',
-      ...(opts?.archived ? { archived: 1 } : {}),
+      archived: opts?.archived ? 1 : 0,
     },
   })
   return res.data

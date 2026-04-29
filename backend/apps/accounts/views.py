@@ -1,4 +1,5 @@
 from decouple import config
+from django.conf import settings
 from rest_framework import mixins, permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -20,6 +21,24 @@ from .serializers import (
 
 def is_manager(user):
     return bool(user and user.is_authenticated and user.role == CustomUser.Role.ADMIN)
+
+
+def jwt_cookie_options(include_httponly=True):
+    secure = config("JWT_COOKIE_SECURE", default=not settings.DEBUG, cast=bool)
+    samesite = config("JWT_COOKIE_SAMESITE", default="None" if secure else "Lax")
+
+    if str(samesite).lower() == "none":
+        secure = True
+
+    options = {
+        "secure": secure,
+        "samesite": samesite,
+        "domain": config("JWT_COOKIE_DOMAIN", default=None) or None,
+        "path": "/",
+    }
+    if include_httponly:
+        options["httponly"] = True
+    return options
 
 
 class LoginView(APIView):
@@ -48,27 +67,15 @@ class LoginView(APIView):
 
         response = Response({"success": True, "data": {}, "message": "Logged in", "errors": {}}, status=status.HTTP_200_OK)
 
-        cookie_secure = config("JWT_COOKIE_SECURE", default=False, cast=bool)
-        cookie_samesite = config("JWT_COOKIE_SAMESITE", default="Lax")
-        cookie_domain = config("JWT_COOKIE_DOMAIN", default=None)
-
         response.set_cookie(
             "daftar_access",
             access,
-            httponly=True,
-            secure=cookie_secure,
-            samesite=cookie_samesite,
-            domain=cookie_domain,
-            path="/",
+            **jwt_cookie_options(),
         )
         response.set_cookie(
             "daftar_refresh",
             refresh,
-            httponly=True,
-            secure=cookie_secure,
-            samesite=cookie_samesite,
-            domain=cookie_domain,
-            path="/",
+            **jwt_cookie_options(),
         )
         return response
 
@@ -89,18 +96,11 @@ class RefreshView(APIView):
             access = str(token.access_token)
 
             response = Response({"success": True, "data": {}, "message": "Refreshed", "errors": {}}, status=status.HTTP_200_OK)
-            cookie_secure = config("JWT_COOKIE_SECURE", default=False, cast=bool)
-            cookie_samesite = config("JWT_COOKIE_SAMESITE", default="Lax")
-            cookie_domain = config("JWT_COOKIE_DOMAIN", default=None)
 
             response.set_cookie(
                 "daftar_access",
                 access,
-                httponly=True,
-                secure=cookie_secure,
-                samesite=cookie_samesite,
-                domain=cookie_domain,
-                path="/",
+                **jwt_cookie_options(),
             )
             return response
         except TokenError:
@@ -122,9 +122,14 @@ class LogoutView(APIView):
                 pass
 
         response = Response({"success": True, "data": {}, "message": "Logged out", "errors": {}}, status=status.HTTP_200_OK)
-        cookie_domain = config("JWT_COOKIE_DOMAIN", default=None)
-        response.delete_cookie("daftar_access", path="/", domain=cookie_domain)
-        response.delete_cookie("daftar_refresh", path="/", domain=cookie_domain)
+        cookie_options = jwt_cookie_options(include_httponly=False)
+        delete_options = {
+            "path": cookie_options["path"],
+            "domain": cookie_options["domain"],
+            "samesite": cookie_options["samesite"],
+        }
+        response.delete_cookie("daftar_access", **delete_options)
+        response.delete_cookie("daftar_refresh", **delete_options)
         return response
 
 

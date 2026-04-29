@@ -283,11 +283,15 @@ class ClientViewSet(viewsets.ModelViewSet):
     pagination_ordering = "name"
 
     def get_queryset(self):
-        show_archived = (self.request.query_params.get("archived") or "").strip().lower() in {
-            "1",
-            "true",
-            "yes",
-        }
+        archived_actions = {"restore_client", "purge_client_with_password"}
+        if getattr(self, "action", "") in archived_actions:
+            show_archived = True
+        else:
+            show_archived = (self.request.query_params.get("archived") or "").strip().lower() in {
+                "1",
+                "true",
+                "yes",
+            }
 
         return (
             Client.objects.annotate(
@@ -320,8 +324,25 @@ class ClientViewSet(viewsets.ModelViewSet):
             .all()
         )
 
+    def _require_manager(self, request):
+        if getattr(request.user, "role", None) != "ADMIN":
+            return Response(
+                {
+                    "success": False,
+                    "data": {},
+                    "message": "Only managers can manage client archives",
+                    "errors": {"detail": "Manager role required"},
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+        return None
+
     @action(detail=True, methods=["post"], url_path="archive")
     def archive_client(self, request, pk=None):
+        denied = self._require_manager(request)
+        if denied:
+            return denied
+
         client = self.get_object()
         if client.is_archived:
             return Response({"success": True, "data": {}, "message": "Already archived", "errors": {}}, status=status.HTTP_200_OK)
@@ -332,6 +353,10 @@ class ClientViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"], url_path="restore")
     def restore_client(self, request, pk=None):
+        denied = self._require_manager(request)
+        if denied:
+            return denied
+
         client = self.get_object()
         if not client.is_archived:
             return Response({"success": True, "data": {}, "message": "Already active", "errors": {}}, status=status.HTTP_200_OK)
@@ -342,6 +367,10 @@ class ClientViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"], url_path="purge")
     def purge_client_with_password(self, request, pk=None):
+        denied = self._require_manager(request)
+        if denied:
+            return denied
+
         password = request.data.get("password")
         if not isinstance(password, str) or not password.strip():
             return Response(

@@ -15,13 +15,14 @@ type NavItem = {
   to: string
   label: string
   Icon: React.ComponentType<{ className?: string }>
+  end?: boolean
 }
 
 const items: NavItem[] = [
   { to: '/dashboard', label: 'Dashboard', Icon: LayoutDashboard },
   { to: '/timer', label: 'Timer', Icon: PlayCircle },
-  { to: '/clients', label: 'Clients', Icon: Users },
-  { to: '/clients/archived', label: 'Archived', Icon: Users },
+  { to: '/clients', label: 'Clients', Icon: Users, end: true },
+  { to: '/clients/archived', label: 'Archived', Icon: Users, end: true },
   { to: '/tickets', label: 'Tickets', Icon: Ticket },
   { to: '/calendar', label: 'Calendar', Icon: CalendarDays },
   { to: '/agents', label: 'Agents', Icon: Users },
@@ -51,10 +52,11 @@ export function Sidebar(props: { collapsed: boolean }) {
       <nav className={[props.collapsed ? 'px-2' : 'px-3', 'py-2'].join(' ')}>
         <div className="space-y-1">
           {items
-            .map(({ to, label, Icon }) => (
+            .map(({ to, label, Icon, end }) => (
               <NavLink
                 key={to}
                 to={to}
+                end={end}
                 className={({ isActive }) =>
                   [
                     linkClass(isActive),

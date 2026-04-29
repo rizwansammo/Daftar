@@ -22,7 +22,14 @@ import { TicketsClientsPage } from './pages/TicketsClientsPage'
 import { TimerPage } from './pages/TimerPage'
 import { ToolsPage } from './pages/ToolsPage'
 
-const queryClient = new QueryClient()
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+})
 
 export default function App() {
   return (

@@ -26,8 +26,9 @@ export function LoginPage() {
       setMe(meRes.data)
       queryClient.invalidateQueries({ queryKey: ['me'] })
       toast.success('Welcome back')
-      const from = (location.state as { from?: Location } | null)?.from
-      navigate(from ? from.pathname : '/dashboard', { replace: true })
+      const from = (location.state as { from?: { pathname?: string; search?: string; hash?: string } } | null)?.from
+      const nextPath = from?.pathname && from.pathname !== '/login' ? from.pathname : '/dashboard'
+      navigate(`${nextPath}${from?.search ?? ''}${from?.hash ?? ''}`, { replace: true })
     } catch (err) {
       if (axios.isAxiosError(err)) {
         const status = err.response?.status
