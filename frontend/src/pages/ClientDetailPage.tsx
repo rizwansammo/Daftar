@@ -111,6 +111,15 @@ function statusTone(status: string) {
   return 'muted'
 }
 
+function cursorFromUrl(url: string | null | undefined) {
+  if (!url) return null
+  try {
+    return new URL(url, window.location.origin).searchParams.get('cursor')
+  } catch {
+    return null
+  }
+}
+
 export function ClientDetailPage() {
   const params = useParams()
   const queryClient = useQueryClient()
@@ -118,6 +127,7 @@ export function ClientDetailPage() {
 
   const clientId = params.clientId
   const [search, setSearch] = useState('')
+  const [cursor, setCursor] = useState<string | null>(null)
 
   const [isNewOpen, setIsNewOpen] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -136,6 +146,7 @@ export function ClientDetailPage() {
   const [editTicket, setEditTicket] = useState('')
   const [editStatus, setEditStatus] = useState<'COMPLETED' | 'PENDING' | 'ESCALATED'>('PENDING')
   const [editPriority, setEditPriority] = useState<'LOW' | 'NORMAL' | 'HIGH'>('LOW')
+  const [editSelectedAgentId, setEditSelectedAgentId] = useState('')
   const [editSteps, setEditSteps] = useState('')
   const [editNoteId, setEditNoteId] = useState<string | null>(null)
   const [editWorkDate, setEditWorkDate] = useState('')
@@ -147,8 +158,16 @@ export function ClientDetailPage() {
       client: clientId,
       search: trimmed.length ? trimmed : undefined,
       ordering: '-created_at',
+      cursor: cursor ?? undefined,
     }
-  }, [search, clientId])
+  }, [search, clientId, cursor])
+
+  useEffect(() => {
+    setCursor(null)
+    setSelected({})
+    setExpandedId(null)
+    setDetailId(null)
+  }, [clientId, search])
 
   const clientQuery = useQuery({
     queryKey: ['client', clientId],
@@ -268,6 +287,7 @@ export function ClientDetailPage() {
         ticket: nextTicket,
         status: editStatus,
         priority: editPriority,
+        assigned_agent_id: editSelectedAgentId || null,
       })
 
       const steps = editSteps.trim()
@@ -322,6 +342,7 @@ export function ClientDetailPage() {
       setEditTicket('')
       setEditSteps('')
       setEditNoteId(null)
+      setEditSelectedAgentId('')
       setEditWorkDate('')
       setEditHoursWorked('')
       queryClient.invalidateQueries({ queryKey: ['tickets'] })
@@ -433,6 +454,16 @@ export function ClientDetailPage() {
     return visibleTicketIds.every((id) => Boolean(selected[id]))
   }, [visibleTicketIds, selected])
 
+  const previousCursor = useMemo(() => cursorFromUrl(ticketsQuery.data?.previous), [ticketsQuery.data?.previous])
+  const nextCursor = useMemo(() => cursorFromUrl(ticketsQuery.data?.next), [ticketsQuery.data?.next])
+
+  function goToCursor(nextPageCursor: string | null) {
+    setCursor(nextPageCursor)
+    setSelected({})
+    setExpandedId(null)
+    setDetailId(null)
+  }
+
   const errorMessage = (err: unknown, fallback: string) => {
     if (axios.isAxiosError(err)) {
       const status = err.response?.status
@@ -498,6 +529,7 @@ export function ClientDetailPage() {
                 setEditTicket(ticketLabel(t))
                 setEditStatus(t.status as 'COMPLETED' | 'PENDING' | 'ESCALATED')
                 setEditPriority(t.priority as 'LOW' | 'NORMAL' | 'HIGH')
+                setEditSelectedAgentId(t.assigned_agent?.id ?? '')
                 setEditWorkDate(new Date().toISOString().slice(0, 10))
                 setEditHoursWorked(formatWorked(t.total_time_seconds))
                 setIsEditOpen(true)
@@ -727,7 +759,10 @@ export function ClientDetailPage() {
               </div>
               <button
                 type="button"
-                onClick={() => setIsEditOpen(false)}
+                onClick={() => {
+                  setIsEditOpen(false)
+                  setEditSelectedAgentId('')
+                }}
                 className="text-sm text-text-secondary hover:text-text-primary"
               >
                 Close
@@ -785,6 +820,22 @@ export function ClientDetailPage() {
                 </select>
               </div>
 
+              <div className="space-y-2 md:col-span-2">
+                <label className="text-xs font-medium text-text-secondary">Agent</label>
+                <select
+                  value={editSelectedAgentId}
+                  onChange={(e) => setEditSelectedAgentId(e.target.value)}
+                  className="h-10 w-full rounded-xl border border-border-subtle bg-bg-secondary px-3 text-sm text-text-primary focus:border-accent-primary focus:ring-accent-primary/30"
+                >
+                  <option value="">Unassigned</option>
+                  {(agentsQuery.data ?? []).map((agent) => (
+                    <option key={agent.id} value={agent.id}>
+                      {agent.display_name || agent.full_name || agent.email}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <div className="space-y-2">
                 <label className="text-xs font-medium text-text-secondary">Work date</label>
                 <input
@@ -809,7 +860,10 @@ export function ClientDetailPage() {
             <div className="mt-5 flex items-center justify-end gap-2">
               <button
                 type="button"
-                onClick={() => setIsEditOpen(false)}
+                onClick={() => {
+                  setIsEditOpen(false)
+                  setEditSelectedAgentId('')
+                }}
                 className="inline-flex h-10 items-center justify-center rounded-xl border border-border-subtle bg-bg-secondary px-4 text-sm text-text-primary hover:bg-bg-hover"
               >
                 Cancel
@@ -990,6 +1044,31 @@ export function ClientDetailPage() {
                 ) : null}
               </div>
             ))}
+          </div>
+
+          <div className="flex flex-col gap-3 border-t border-border-subtle bg-bg-secondary px-4 py-3 text-sm text-text-secondary sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              Showing {ticketsQuery.data.results.length} ticket{ticketsQuery.data.results.length === 1 ? '' : 's'}
+              {cursor ? ' on this page' : ''}
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => goToCursor(previousCursor)}
+                disabled={!ticketsQuery.data?.previous || ticketsQuery.isFetching}
+                className="inline-flex h-9 items-center justify-center rounded-lg border border-border-subtle bg-bg-card px-3 text-sm font-medium text-text-primary hover:bg-bg-hover disabled:pointer-events-none disabled:opacity-45"
+              >
+                Previous
+              </button>
+              <button
+                type="button"
+                onClick={() => goToCursor(nextCursor)}
+                disabled={!ticketsQuery.data?.next || ticketsQuery.isFetching}
+                className="inline-flex h-9 items-center justify-center rounded-lg bg-accent-primary px-3 text-sm font-medium text-white hover:bg-accent-hover disabled:pointer-events-none disabled:opacity-45"
+              >
+                Next
+              </button>
+            </div>
           </div>
         </div>
       )}

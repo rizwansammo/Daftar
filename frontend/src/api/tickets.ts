@@ -167,6 +167,7 @@ export type TicketImportResult = {
   updated: number
   failed: number
   required_fields: string[]
+  optional_fields?: string[]
   errors: string[]
 }
 

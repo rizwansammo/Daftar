@@ -262,6 +262,13 @@ export function ToolsPage() {
             )}
           </div>
 
+          <div className="mt-4 rounded-lg border border-border-subtle bg-bg-secondary px-3 py-2 text-xs leading-relaxed text-text-secondary">
+            Export format: Date is <span className="font-medium text-text-primary">MM/DD/YYYY</span> and Worked is{' '}
+            <span className="font-medium text-text-primary">HH:MM</span> such as 01:30. Agent defaults to{' '}
+            <span className="font-medium text-text-primary">Unassigned</span>, Worked defaults to{' '}
+            <span className="font-medium text-text-primary">00:00</span>, and Detail stays blank when no steps exist.
+          </div>
+
           <div className="mt-5 flex flex-wrap items-center gap-2">
             <button
               type="button"
@@ -321,10 +328,12 @@ export function ToolsPage() {
           </div>
 
           <div className="mt-4 text-xs text-text-secondary">
-            CSV must include these headers (case-insensitive):
+            CSV must include these required headers (case-insensitive):
             {' '}
-            <span className="font-medium text-text-primary">date, ticket, agent, level, status, worked</span>.
-            {' '}Optional: detail.
+            <span className="font-medium text-text-primary">date, ticket</span>.
+            {' '}Date format: <span className="font-medium text-text-primary">MM/DD/YYYY</span>. Optional:{' '}
+            <span className="font-medium text-text-primary">agent, level, status, worked, detail</span>. Worked format:{' '}
+            <span className="font-medium text-text-primary">HH:MM</span>. Empty Agent becomes Unassigned, empty Worked becomes 00:00, and empty Detail means no steps added.
           </div>
 
           <div className="mt-5">

@@ -121,7 +121,7 @@ def _parse_date(value: str) -> date_cls:
     if not raw:
         raise ValueError("Date is required")
 
-    for fmt in ("%Y-%m-%d", "%d %b %Y", "%d %B %Y", "%d/%m/%Y", "%m/%d/%Y"):
+    for fmt in ("%m/%d/%Y", "%Y-%m-%d", "%d %b %Y", "%d %B %Y", "%d/%m/%Y"):
         try:
             return datetime.strptime(raw, fmt).date()
         except ValueError:
@@ -182,8 +182,8 @@ def _build_pdf_bytes(title: str, subtitle: str, rows: list[dict]) -> bytes:
             f"   Date: {row['date']}  |  Agent: {row['agent']}  |  Level: {row['level']}  |  Status: {row['status']}"
         )
         lines.append(f"   Worked: {row['worked']}")
-        detail = row.get("detail") or "-"
-        wrapped = textwrap.wrap(detail, width=110) or ["-"]
+        detail = str(row.get("detail") or "").strip()
+        wrapped = textwrap.wrap(detail, width=110) or [""]
         lines.append(f"   Detail: {wrapped[0]}")
         for continuation in wrapped[1:]:
             lines.append(f"           {continuation}")
@@ -685,14 +685,15 @@ class TicketViewSet(viewsets.ModelViewSet):
 
         rows = []
         for ticket in tickets:
+            total_seconds = getattr(ticket, "total_seconds", None)
             rows.append(
                 {
-                    "date": timezone.localtime(ticket.created_at).strftime("%Y-%m-%d"),
+                    "date": timezone.localtime(ticket.created_at).strftime("%m/%d/%Y"),
                     "ticket": _compose_ticket(ticket.ticket_number, ticket.title),
                     "agent": _agent_label(ticket.assigned_agent),
                     "level": PRIORITY_LEVEL_MAP.get(ticket.priority, "L2"),
-                    "status": ticket.status,
-                    "worked": _format_worked(getattr(ticket, "total_seconds", 0)),
+                    "status": ticket.status or Ticket.Status.PENDING,
+                    "worked": _format_worked(total_seconds),
                     "detail": _latest_detail(ticket),
                 }
             )
@@ -720,7 +721,7 @@ class TicketViewSet(viewsets.ModelViewSet):
                 )
             return response
 
-        subtitle = f"Client: {client.name} | Range: {start_date.isoformat()} to {end_date.isoformat()}"
+        subtitle = f"Client: {client.name} | Range: {start_date.strftime('%m/%d/%Y')} to {end_date.strftime('%m/%d/%Y')}"
         pdf_bytes = _build_pdf_bytes("Daftar Ticket Export", subtitle, rows)
 
         response = HttpResponse(content_type="application/pdf")
@@ -776,8 +777,9 @@ class TicketViewSet(viewsets.ModelViewSet):
         def pick(data: dict, *keys: str) -> str:
             for key in keys:
                 value = data.get(key)
-                if value is not None and str(value).strip():
-                    return str(value).strip()
+                cleaned = str(value or "").strip()
+                if cleaned and cleaned != "---":
+                    return cleaned
             return ""
 
         created = 0
@@ -795,17 +797,19 @@ class TicketViewSet(viewsets.ModelViewSet):
                 title = pick(normalized, "title", "subject", "ticket subject")
 
                 if ticket:
-                    parsed_ticket_number, parsed_title = _split_ticket(ticket, strict=True)
+                    parsed_ticket_number, parsed_title = _split_ticket(ticket, strict=False)
                     ticket_number = ticket_number or parsed_ticket_number
                     title = title or parsed_title
 
                 if ticket_number and not title and " - " in ticket_number:
-                    parsed_ticket_number, parsed_title = _split_ticket(ticket_number, strict=True)
+                    parsed_ticket_number, parsed_title = _split_ticket(ticket_number, strict=False)
                     ticket_number = parsed_ticket_number
                     title = parsed_title
 
-                if not ticket_number or not title:
+                if not ticket_number:
                     raise ValueError("ticket is required")
+
+                title = title or ""
 
                 status_raw = pick(normalized, "status").upper()
                 ticket_status = STATUS_NORMALIZATION.get(status_raw, Ticket.Status.PENDING)
@@ -814,7 +818,9 @@ class TicketViewSet(viewsets.ModelViewSet):
                 ticket_priority = LEVEL_PRIORITY_MAP.get(level_raw, Ticket.Priority.NORMAL)
 
                 date_raw = pick(normalized, "date", "created date", "created_at", "created")
-                row_date = _parse_date(date_raw) if date_raw else timezone.localdate()
+                if not date_raw:
+                    raise ValueError("date is required")
+                row_date = _parse_date(date_raw)
 
                 worked_raw = pick(normalized, "worked", "worked time", "time worked", "worked_time")
                 worked_seconds = _parse_worked_seconds(worked_raw) if worked_raw else 0
@@ -822,14 +828,13 @@ class TicketViewSet(viewsets.ModelViewSet):
                 detail = pick(normalized, "detail", "summary", "steps", "note")
                 agent_key = pick(normalized, "agent", "assigned agent", "assigned_agent", "agent_email", "agent email")
 
-                assigned_agent = request.user
+                assigned_agent = None
                 if agent_key:
                     lowered = agent_key.lower()
                     assigned_agent = (
                         users_by_email.get(lowered)
                         or users_by_display.get(lowered)
                         or users_by_full.get(lowered)
-                        or request.user
                     )
 
                 ticket = (
@@ -873,7 +878,7 @@ class TicketViewSet(viewsets.ModelViewSet):
                     ended_at = started_at + timedelta(seconds=worked_seconds)
                     TimeEntry.objects.create(
                         ticket=ticket,
-                        agent=assigned_agent,
+                        agent=assigned_agent or request.user,
                         started_at=started_at,
                         ended_at=ended_at,
                         note="Imported from CSV",
@@ -896,7 +901,8 @@ class TicketViewSet(viewsets.ModelViewSet):
                     "created": created,
                     "updated": updated,
                     "failed": failed,
-                    "required_fields": ["date", "ticket", "agent", "level", "status", "worked"],
+                    "required_fields": ["date", "ticket"],
+                    "optional_fields": ["agent", "level", "status", "worked", "detail"],
                     "errors": errors[:100],
                 },
                 "message": "Import completed",
