@@ -28,6 +28,18 @@ export async function deleteUser(userId: string) {
   return res.data
 }
 
+export type UpdateUserInput = {
+  full_name?: string
+  display_name?: string
+  email?: string
+  role?: 'ADMIN' | 'AGENT'
+}
+
+export async function updateUser(userId: string, input: UpdateUserInput) {
+  const res = await http.patch<ApiEnvelope<AgentUser>>(`/auth/users/${encodeURIComponent(userId)}/`, input)
+  return res.data
+}
+
 export type ResetUserPasswordInput = {
   new_password: string
   current_password?: string

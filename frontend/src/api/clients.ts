@@ -3,9 +3,13 @@ import type { ApiEnvelope } from '../types/auth'
 import type { CursorPage } from '../types/pagination'
 import type { Client } from '../types/tickets'
 
-export async function listClients(search?: string) {
+export async function listClients(search?: string, opts?: { archived?: boolean }) {
   const res = await http.get<ApiEnvelope<CursorPage<Client>>>('/clients/', {
-    params: search ? { search, ordering: 'name' } : { ordering: 'name' },
+    params: {
+      ...(search ? { search } : {}),
+      ordering: 'name',
+      ...(opts?.archived ? { archived: 1 } : {}),
+    },
   })
   return res.data
 }
@@ -50,5 +54,20 @@ export async function bulkDeleteClientsWithPassword(clientIds: string[], passwor
       password,
     },
   )
+  return res.data
+}
+
+export async function archiveClient(clientId: string) {
+  const res = await http.post<ApiEnvelope<{}>>(`/clients/${encodeURIComponent(clientId)}/archive/`, {})
+  return res.data
+}
+
+export async function restoreClient(clientId: string) {
+  const res = await http.post<ApiEnvelope<{}>>(`/clients/${encodeURIComponent(clientId)}/restore/`, {})
+  return res.data
+}
+
+export async function purgeClientWithPassword(clientId: string, password: string) {
+  const res = await http.post<ApiEnvelope<{}>>(`/clients/${encodeURIComponent(clientId)}/purge/`, { password })
   return res.data
 }

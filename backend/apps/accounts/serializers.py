@@ -78,6 +78,40 @@ class UserCreateSerializer(serializers.ModelSerializer):
         return user
 
 
+class UserUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CustomUser
+        fields = (
+            "email",
+            "display_name",
+            "full_name",
+            "role",
+        )
+
+    def validate_email(self, value):
+        email = value.strip().lower()
+        user_id = getattr(self.instance, "id", None)
+        if CustomUser.objects.exclude(id=user_id).filter(email__iexact=email).exists():
+            raise serializers.ValidationError("This email is already in use.")
+        return email
+
+    def validate_display_name(self, value):
+        display_name = (value or "").strip()
+        if not display_name:
+            raise serializers.ValidationError("Display name is required.")
+        return display_name
+
+    def update(self, instance, validated_data):
+        for key, value in validated_data.items():
+            if isinstance(value, str):
+                value = value.strip()
+            setattr(instance, key, value)
+
+        instance.username = (instance.display_name or instance.full_name or instance.email)[:150]
+        instance.save()
+        return instance
+
+
 class MeUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomUser

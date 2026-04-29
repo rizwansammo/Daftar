@@ -21,6 +21,7 @@ const items: NavItem[] = [
   { to: '/dashboard', label: 'Dashboard', Icon: LayoutDashboard },
   { to: '/timer', label: 'Timer', Icon: PlayCircle },
   { to: '/clients', label: 'Clients', Icon: Users },
+  { to: '/clients/archived', label: 'Archived', Icon: Users },
   { to: '/tickets', label: 'Tickets', Icon: Ticket },
   { to: '/calendar', label: 'Calendar', Icon: CalendarDays },
   { to: '/agents', label: 'Agents', Icon: Users },

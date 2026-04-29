@@ -48,6 +48,7 @@ class ClientSerializer(serializers.ModelSerializer):
             "color_tag",
             "contact_email",
             "notes",
+            "is_archived",
             "created_at",
             "ticket_count",
             "doc_count",

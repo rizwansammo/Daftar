@@ -16,6 +16,7 @@ export type Client = {
   color_tag: string
   contact_email: string
   notes: string
+  is_archived?: boolean
   created_at: string
   ticket_count?: number
   doc_count?: number

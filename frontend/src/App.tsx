@@ -10,6 +10,7 @@ import { CalendarPage } from './pages/CalendarPage'
 import { ClientDetailPage } from './pages/ClientDetailPage'
 import { ClientsPage } from './pages/ClientsPage'
 import { DashboardPage } from './pages/DashboardPage'
+import { ArchivedClientsPage } from './pages/ArchivedClientsPage'
 import { DocsClientLibraryPage } from './pages/DocsClientLibraryPage'
 import { DocsClientsPage } from './pages/DocsClientsPage'
 import { DocsDocumentPage } from './pages/DocsDocumentPage'
@@ -33,6 +34,7 @@ export default function App() {
           <Route element={<AppLayout />}>
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/clients" element={<ClientsPage />} />
+            <Route path="/clients/archived" element={<ArchivedClientsPage />} />
             <Route path="/tickets" element={<Navigate to="/tickets/clients" replace />} />
             <Route path="/tickets/clients" element={<TicketsClientsPage />} />
             <Route path="/tickets/clients/:clientId" element={<ClientDetailPage />} />

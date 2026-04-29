@@ -3,12 +3,16 @@ import { motion } from 'framer-motion'
 import axios from 'axios'
 import toast from 'react-hot-toast'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 
-import { login } from '../api/auth'
+import { login, me } from '../api/auth'
+import { useAuthStore } from '../store/auth'
 
 export function LoginPage() {
   const navigate = useNavigate()
   const location = useLocation()
+  const queryClient = useQueryClient()
+  const setMe = useAuthStore((s) => s.setMe)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -18,6 +22,9 @@ export function LoginPage() {
     setLoading(true)
     try {
       await login(email.trim(), password)
+      const meRes = await me()
+      setMe(meRes.data)
+      queryClient.invalidateQueries({ queryKey: ['me'] })
       toast.success('Welcome back')
       const from = (location.state as { from?: Location } | null)?.from
       navigate(from ? from.pathname : '/dashboard', { replace: true })

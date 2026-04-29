@@ -13,6 +13,7 @@ class Client(models.Model):
     color_tag = models.CharField(max_length=16, blank=True)
     contact_email = models.EmailField(blank=True)
     notes = models.TextField(blank=True)
+    is_archived = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self) -> str:

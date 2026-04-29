@@ -13,6 +13,7 @@ from .serializers import (
     MeUpdateSerializer,
     ResetPasswordSerializer,
     UserCreateSerializer,
+    UserUpdateSerializer,
     UserSerializer,
 )
 
@@ -142,7 +143,13 @@ class MeView(APIView):
         return Response({"success": True, "data": data, "message": "Updated", "errors": {}}, status=status.HTTP_200_OK)
 
 
-class UserViewSet(mixins.ListModelMixin, mixins.CreateModelMixin, mixins.DestroyModelMixin, viewsets.GenericViewSet):
+class UserViewSet(
+    mixins.ListModelMixin,
+    mixins.CreateModelMixin,
+    mixins.DestroyModelMixin,
+    mixins.UpdateModelMixin,
+    viewsets.GenericViewSet,
+):
     queryset = CustomUser.objects.all()
     permission_classes = [permissions.IsAuthenticated]
     search_fields = ["display_name", "full_name", "email"]
@@ -155,7 +162,23 @@ class UserViewSet(mixins.ListModelMixin, mixins.CreateModelMixin, mixins.Destroy
     def get_serializer_class(self):
         if self.action == "create":
             return UserCreateSerializer
+        if self.action in {"update", "partial_update"}:
+            return UserUpdateSerializer
         return UserSerializer
+
+    def update(self, request, *args, **kwargs):
+        if not is_manager(request.user):
+            return Response(
+                {
+                    "success": False,
+                    "data": {},
+                    "message": "Forbidden",
+                    "errors": {"detail": "Only managers can update accounts"},
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        return super().update(request, *args, **kwargs)
 
     def create(self, request, *args, **kwargs):
         if not is_manager(request.user):

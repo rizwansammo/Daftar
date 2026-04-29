@@ -283,6 +283,12 @@ class ClientViewSet(viewsets.ModelViewSet):
     pagination_ordering = "name"
 
     def get_queryset(self):
+        show_archived = (self.request.query_params.get("archived") or "").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+        }
+
         return (
             Client.objects.annotate(
                 ticket_count=Count("tickets", distinct=True),
@@ -309,9 +315,73 @@ class ClientViewSet(viewsets.ModelViewSet):
                 ),
                 total_time_seconds=Sum("tickets__time_entries__duration_seconds"),
             )
+            .filter(is_archived=show_archived)
             .order_by("name")
             .all()
         )
+
+    @action(detail=True, methods=["post"], url_path="archive")
+    def archive_client(self, request, pk=None):
+        client = self.get_object()
+        if client.is_archived:
+            return Response({"success": True, "data": {}, "message": "Already archived", "errors": {}}, status=status.HTTP_200_OK)
+
+        client.is_archived = True
+        client.save(update_fields=["is_archived"])
+        return Response({"success": True, "data": {}, "message": "Archived", "errors": {}}, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=["post"], url_path="restore")
+    def restore_client(self, request, pk=None):
+        client = self.get_object()
+        if not client.is_archived:
+            return Response({"success": True, "data": {}, "message": "Already active", "errors": {}}, status=status.HTTP_200_OK)
+
+        client.is_archived = False
+        client.save(update_fields=["is_archived"])
+        return Response({"success": True, "data": {}, "message": "Restored", "errors": {}}, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=["post"], url_path="purge")
+    def purge_client_with_password(self, request, pk=None):
+        password = request.data.get("password")
+        if not isinstance(password, str) or not password.strip():
+            return Response(
+                {"success": False, "data": {}, "message": "Password required", "errors": {"password": "Required"}},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user = request.user
+        if not user.check_password(password):
+            return Response(
+                {"success": False, "data": {}, "message": "Invalid password", "errors": {"password": "Invalid"}},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        client = self.get_object()
+        if not client.is_archived:
+            return Response(
+                {
+                    "success": False,
+                    "data": {},
+                    "message": "Client must be archived before permanent deletion",
+                    "errors": {"detail": "Archive the client first"},
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            client.delete()
+        except ProtectedError:
+            return Response(
+                {
+                    "success": False,
+                    "data": {},
+                    "message": "Client cannot be deleted while tickets/docs exist",
+                    "errors": {"detail": "Delete or move tickets/docs first"},
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        return Response({"success": True, "data": {}, "message": "Deleted", "errors": {}}, status=status.HTTP_200_OK)
 
     @action(detail=True, methods=["post"], url_path="delete")
     def delete_with_password(self, request, pk=None):

@@ -3,16 +3,18 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
 import toast from 'react-hot-toast'
 
-import { bulkDeleteClientsWithPassword, createClient, listClients, updateClient } from '../api/clients'
+import { archiveClient, createClient, listClients, updateClient } from '../api/clients'
+import { useAuthStore } from '../store/auth'
 
 export function ClientsPage() {
   const queryClient = useQueryClient()
+  const me = useAuthStore((s) => s.me)
+  const isManager = me?.role === 'ADMIN'
   const [search, setSearch] = useState('')
   const [isNewOpen, setIsNewOpen] = useState(false)
   const [name, setName] = useState('')
   const [selectedIds, setSelectedIds] = useState<string[]>([])
-  const [isDeleteOpen, setIsDeleteOpen] = useState(false)
-  const [deletePassword, setDeletePassword] = useState('')
+  const [isArchiveOpen, setIsArchiveOpen] = useState(false)
   const [isRenameOpen, setIsRenameOpen] = useState(false)
   const [renameClientId, setRenameClientId] = useState<string>('')
   const [renameName, setRenameName] = useState('')
@@ -27,29 +29,20 @@ export function ClientsPage() {
     },
   })
 
-  const bulkDeleteMutation = useMutation({
+  const archiveMutation = useMutation({
     mutationFn: async () => {
-      const password = deletePassword.trim()
-      if (!password) throw new Error('Password is required')
+      if (!isManager) throw new Error('Only managers can archive clients')
       if (selectedIds.length === 0) throw new Error('Select at least one client')
-      const res = await bulkDeleteClientsWithPassword(selectedIds, password)
-      return res.data
+      await Promise.all(selectedIds.map((id) => archiveClient(id)))
     },
-    onSuccess: (data) => {
-      setIsDeleteOpen(false)
-      setDeletePassword('')
+    onSuccess: () => {
+      setIsArchiveOpen(false)
       setSelectedIds([])
       queryClient.invalidateQueries({ queryKey: ['clients'] })
-      const deletedCount = (data as { deleted_count?: number } | undefined)?.deleted_count ?? 0
-      toast.success(deletedCount > 0 ? `Deleted ${deletedCount} client(s)` : 'Deleted')
+      toast.success('Client(s) archived')
     },
     onError: (err) => {
-      if (axios.isAxiosError(err)) {
-        const msg = (err.response?.data as { message?: string } | undefined)?.message
-        toast.error(msg || 'Could not delete clients')
-        return
-      }
-      toast.error(err instanceof Error ? err.message : 'Could not delete clients')
+      toast.error(err instanceof Error ? err.message : 'Could not archive clients')
     },
   })
 
@@ -129,13 +122,13 @@ export function ClientsPage() {
           <div className="mt-1 text-sm text-text-secondary">Client list with ticket and documentation totals.</div>
         </div>
         <div className="flex w-full flex-col gap-3 md:w-auto md:flex-row md:items-end">
-          {selectedIds.length > 0 ? (
+          {isManager && selectedIds.length > 0 ? (
             <button
               type="button"
-              onClick={() => setIsDeleteOpen(true)}
+              onClick={() => setIsArchiveOpen(true)}
               className="inline-flex h-10 items-center justify-center rounded-xl border border-border-subtle bg-bg-secondary px-4 text-sm font-medium text-text-primary hover:bg-bg-hover"
             >
-              Delete ({selectedIds.length})
+              Archive ({selectedIds.length})
             </button>
           ) : null}
           <button
@@ -209,59 +202,40 @@ export function ClientsPage() {
         </div>
       ) : null}
 
-      {isDeleteOpen ? (
+      {isArchiveOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-[520px] rounded-xl border border-border-subtle bg-bg-card p-5 shadow-sm">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <div className="text-sm font-semibold">Delete clients</div>
+                <div className="text-sm font-semibold">Archive clients</div>
                 <div className="mt-1 text-sm text-text-secondary">
-                  Enter your password to delete {selectedIds.length} selected client(s).
+                  Archive {selectedIds.length} selected client(s). You can restore them from Archived.
                 </div>
               </div>
               <button
                 type="button"
-                onClick={() => {
-                  setIsDeleteOpen(false)
-                  setDeletePassword('')
-                }}
+                onClick={() => setIsArchiveOpen(false)}
                 className="text-sm text-text-secondary hover:text-text-primary"
               >
                 Close
               </button>
             </div>
 
-            <div className="mt-4 space-y-4">
-              <div className="space-y-2">
-                <label className="text-xs font-medium text-text-secondary">Password</label>
-                <input
-                  value={deletePassword}
-                  onChange={(e) => setDeletePassword(e.target.value)}
-                  type="password"
-                  className="h-10 w-full rounded-xl border border-border-subtle bg-bg-secondary px-3 text-sm text-text-primary placeholder:text-text-muted focus:border-accent-primary focus:ring-accent-primary/30"
-                  placeholder="Your password"
-                />
-              </div>
-            </div>
-
             <div className="mt-5 flex items-center justify-end gap-2">
               <button
                 type="button"
-                onClick={() => {
-                  setIsDeleteOpen(false)
-                  setDeletePassword('')
-                }}
+                onClick={() => setIsArchiveOpen(false)}
                 className="inline-flex h-10 items-center justify-center rounded-xl border border-border-subtle bg-bg-secondary px-4 text-sm text-text-primary hover:bg-bg-hover"
               >
                 Cancel
               </button>
               <button
                 type="button"
-                onClick={() => bulkDeleteMutation.mutate()}
-                disabled={bulkDeleteMutation.isPending}
-                className="inline-flex h-10 items-center justify-center rounded-xl bg-red-600 px-4 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-60"
+                onClick={() => archiveMutation.mutate()}
+                disabled={archiveMutation.isPending}
+                className="inline-flex h-10 items-center justify-center rounded-xl bg-amber-600 px-4 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-60"
               >
-                {bulkDeleteMutation.isPending ? 'Deleting...' : 'Confirm delete'}
+                {archiveMutation.isPending ? 'Archiving...' : 'Confirm archive'}
               </button>
             </div>
           </div>

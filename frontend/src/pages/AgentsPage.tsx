@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import axios from 'axios'
 import toast from 'react-hot-toast'
 
-import { createUser, deleteUser, listUsers, resetUserPassword } from '../api/users'
+import { createUser, deleteUser, listUsers, resetUserPassword, updateUser } from '../api/users'
 import { useAuthStore } from '../store/auth'
 import type { AgentUser } from '../types/users'
 
@@ -43,6 +43,12 @@ export function AgentsPage() {
 
   const [deleteTarget, setDeleteTarget] = useState<AgentUser | null>(null)
 
+  const [editTarget, setEditTarget] = useState<AgentUser | null>(null)
+  const [editFullName, setEditFullName] = useState('')
+  const [editDisplayName, setEditDisplayName] = useState('')
+  const [editEmail, setEditEmail] = useState('')
+  const [editRole, setEditRole] = useState<'ADMIN' | 'AGENT'>('AGENT')
+
   const params = useMemo(() => search.trim(), [search])
 
   const usersQuery = useQuery({
@@ -50,6 +56,39 @@ export function AgentsPage() {
     queryFn: async () => {
       const res = await listUsers(params || undefined)
       return res.data
+    },
+  })
+
+  const updateMutation = useMutation({
+    mutationFn: async () => {
+      if (!isManager) throw new Error('Only managers can update users')
+      if (!editTarget) throw new Error('Missing target user')
+
+      const full_name = editFullName.trim()
+      const display_name = editDisplayName.trim()
+      const email = editEmail.trim()
+
+      if (!full_name || !display_name || !email) throw new Error('All fields are required')
+
+      const res = await updateUser(editTarget.id, {
+        full_name,
+        display_name,
+        email,
+        role: editRole,
+      })
+      return res.data
+    },
+    onSuccess: () => {
+      setEditTarget(null)
+      setEditFullName('')
+      setEditDisplayName('')
+      setEditEmail('')
+      setEditRole('AGENT')
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+      toast.success('Account updated')
+    },
+    onError: (err) => {
+      toast.error(getErrorMessage(err, 'Could not update account'))
     },
   })
 
@@ -149,6 +188,85 @@ export function AgentsPage() {
               Create Agent
             </button>
           ) : null}
+
+      {editTarget ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-[620px] rounded-xl border border-border-subtle bg-bg-card p-5 shadow-sm">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="text-sm font-semibold">Edit account</div>
+                <div className="mt-1 text-sm text-text-secondary">{editTarget.email}</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditTarget(null)}
+                className="text-sm text-text-secondary hover:text-text-primary"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="space-y-2 md:col-span-2">
+                <label className="text-xs font-medium text-text-secondary">Full name</label>
+                <input
+                  value={editFullName}
+                  onChange={(e) => setEditFullName(e.target.value)}
+                  type="text"
+                  className="h-10 w-full rounded-xl border border-border-subtle bg-bg-secondary px-3 text-sm text-text-primary focus:border-accent-primary focus:ring-accent-primary/30"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-text-secondary">Display name</label>
+                <input
+                  value={editDisplayName}
+                  onChange={(e) => setEditDisplayName(e.target.value)}
+                  type="text"
+                  className="h-10 w-full rounded-xl border border-border-subtle bg-bg-secondary px-3 text-sm text-text-primary focus:border-accent-primary focus:ring-accent-primary/30"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-text-secondary">Email</label>
+                <input
+                  value={editEmail}
+                  onChange={(e) => setEditEmail(e.target.value)}
+                  type="email"
+                  className="h-10 w-full rounded-xl border border-border-subtle bg-bg-secondary px-3 text-sm text-text-primary focus:border-accent-primary focus:ring-accent-primary/30"
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-medium text-text-secondary">Role</label>
+                <select
+                  value={editRole}
+                  onChange={(e) => setEditRole(e.target.value as 'ADMIN' | 'AGENT')}
+                  className="h-10 w-full rounded-xl border border-border-subtle bg-bg-secondary px-3 text-sm text-text-primary focus:border-accent-primary focus:ring-accent-primary/30"
+                >
+                  <option value="AGENT">Agent</option>
+                  <option value="ADMIN">Manager</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setEditTarget(null)}
+                className="inline-flex h-10 items-center justify-center rounded-xl border border-border-subtle bg-bg-secondary px-4 text-sm text-text-primary hover:bg-bg-hover"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => updateMutation.mutate()}
+                disabled={updateMutation.isPending}
+                className="inline-flex h-10 items-center justify-center rounded-xl bg-accent-primary px-4 text-sm font-medium text-white hover:bg-accent-hover disabled:opacity-60"
+              >
+                {updateMutation.isPending ? 'Saving...' : 'Save'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
           <div className="w-full md:w-[420px]">
             <label className="text-xs font-medium text-text-secondary">Search</label>
             <input
@@ -376,6 +494,7 @@ export function AgentsPage() {
                 const isSelf = user.id === me?.id
                 const canReset = isManager || isSelf
                 const canDelete = isManager && !isSelf
+                const canEdit = isManager
                 return (
                   <tr key={user.id} className="hover:bg-bg-hover/40">
                     <td className="px-4 py-3">
@@ -386,6 +505,21 @@ export function AgentsPage() {
                     <td className="px-4 py-3 text-text-secondary">{roleLabel(user.role)}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
+                        {canEdit ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditTarget(user)
+                              setEditFullName(user.full_name || '')
+                              setEditDisplayName(user.display_name || '')
+                              setEditEmail(user.email || '')
+                              setEditRole(user.role)
+                            }}
+                            className="inline-flex h-8 items-center rounded-lg border border-border-subtle bg-bg-secondary px-3 text-xs font-medium text-text-primary hover:bg-bg-hover"
+                          >
+                            Edit
+                          </button>
+                        ) : null}
                         {canReset ? (
                           <button
                             type="button"
